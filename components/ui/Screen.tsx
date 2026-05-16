@@ -1,0 +1,25 @@
+import { StatusBar } from "expo-status-bar";
+import { ScrollView, View, type ScrollViewProps } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+type ScreenProps = ScrollViewProps & {
+  children: React.ReactNode;
+  scroll?: boolean;
+};
+
+export function Screen({ children, scroll = true, className = "", ...props }: ScreenProps) {
+  const content = scroll ? (
+    <ScrollView className={`flex-1 ${className}`} contentContainerClassName="px-5 pb-28" showsVerticalScrollIndicator={false} {...props}>
+      {children}
+    </ScrollView>
+  ) : (
+    <View className={`flex-1 px-5 pb-6 ${className}`}>{children}</View>
+  );
+
+  return (
+    <SafeAreaView className="flex-1 bg-white">
+      <StatusBar style="dark" />
+      {content}
+    </SafeAreaView>
+  );
+}

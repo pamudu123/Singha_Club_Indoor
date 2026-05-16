@@ -19,3 +19,6 @@ Support ladies' cricket
 
 Problems
 A lot of tiles if we go with 30-minute intervals.
+
+
+![Time Pick](timepick.png.png)

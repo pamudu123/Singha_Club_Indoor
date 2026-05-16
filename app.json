@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Singha Sports Club",
+    "slug": "singha-club-indoor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/singha_logo.jpg",
+    "scheme": "singhaclub",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/singha_logo.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/singha_logo.jpg",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-document-picker",
+      "expo-image-picker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -13,7 +13,7 @@ This document shall be sent to:
 
 The same PDF document should be used for both WhatsApp and email.
 
-WhatsApp supports document messages where the user can tap and download the attached document. ([Facebook Developers][1])
+WhatsApp supports document messages where the user can tap and download the attached document.
 
 # 2. Updated flow after approval
 
