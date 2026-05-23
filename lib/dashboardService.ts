@@ -1,7 +1,6 @@
-import { blockedSlots, bookings } from "@/constants/mockData";
 import type { Booking, ServiceResult } from "@/types/database";
 import { todayISO } from "./date";
-import { hasSupabaseConfig, requireSupabase, toServiceError } from "./supabase";
+import { requireSupabase, toServiceError } from "./supabase";
 
 export type DashboardSummary = {
   todayBookings: number;
@@ -16,45 +15,6 @@ export type DashboardSummary = {
 };
 
 export async function getDashboardSummary(): Promise<ServiceResult<DashboardSummary>> {
-  if (!hasSupabaseConfig) {
-    return {
-      data: {
-        todayBookings: 18,
-        pendingRequests: bookings.filter((booking) => booking.status === "submitted").length,
-        onHoldBookings: bookings.filter((booking) => booking.status === "on_hold").length,
-        todayRevenue: 32450,
-        weekRevenue: 248750,
-        availableSlotsToday: 26,
-        blockedSlotsToday: blockedSlots.length,
-        nextUpcomingBooking: bookings[0],
-        recentActivity: [
-          {
-            id: "a1",
-            title: "New booking received for 5:00 PM today",
-            subtitle: "Track 2 - Corporate Match",
-            time: "9:25 AM",
-            tone: "green"
-          },
-          {
-            id: "a2",
-            title: "Booking request pending approval",
-            subtitle: "Tomorrow, 8:30 PM - Track 1",
-            time: "8:47 AM",
-            tone: "orange"
-          },
-          {
-            id: "a3",
-            title: "Slot blocked by admin",
-            subtitle: "May 24, 10:00 PM - 11:00 PM",
-            time: "Yesterday",
-            tone: "red"
-          }
-        ]
-      },
-      error: null
-    };
-  }
-
   try {
     const client = requireSupabase();
     const today = todayISO();

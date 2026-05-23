@@ -1,8 +1,6 @@
-import { bookings as mockBookings } from "@/constants/mockData";
 import type { Booking, BookingStatus, CreateBookingInput, ServiceResult } from "@/types/database";
-import { hasSupabaseConfig, requireSupabase, toServiceError } from "./supabase";
-
-let localBookings = [...mockBookings];
+import { getDefaultCurrency } from "./pricingService";
+import { getWritableSupabase, requireSupabase, supabaseAdmin, toServiceError } from "./supabase";
 
 const bookingSelect = `
   booking_id,
@@ -41,13 +39,14 @@ const bookingSelect = `
   )
 `;
 
-export async function listBookings(status?: BookingStatus): Promise<ServiceResult<Booking[]>> {
-  if (!hasSupabaseConfig) {
-    return { data: status ? localBookings.filter((booking) => booking.status === status) : localBookings, error: null };
-  }
+function makeBookingReference() {
+  return `SCB-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+}
 
+export async function listBookings(status?: BookingStatus): Promise<ServiceResult<Booking[]>> {
   try {
-    let query = requireSupabase().from("bookings").select(bookingSelect).order("created_at", { ascending: false });
+    const client = supabaseAdmin ?? requireSupabase();
+    let query = client.from("bookings").select(bookingSelect).order("created_at", { ascending: false });
     if (status) query = query.eq("status", status);
     const { data, error } = await query;
     if (error) throw error;
@@ -58,12 +57,9 @@ export async function listBookings(status?: BookingStatus): Promise<ServiceResul
 }
 
 export async function getBooking(bookingId: string): Promise<ServiceResult<Booking>> {
-  if (!hasSupabaseConfig) {
-    return { data: localBookings.find((booking) => booking.booking_id === bookingId) ?? localBookings[0], error: null };
-  }
-
   try {
-    const { data, error } = await requireSupabase()
+    const client = supabaseAdmin ?? requireSupabase();
+    const { data, error } = await client
       .from("bookings")
       .select(bookingSelect)
       .eq("booking_id", bookingId)
@@ -82,30 +78,8 @@ export async function updateBookingStatus(input: {
   adminId: string;
   reason?: string;
 }) {
-  if (!hasSupabaseConfig) {
-    localBookings = localBookings.map((booking) =>
-      booking.booking_id === input.bookingId
-        ? {
-            ...booking,
-            status: input.newStatus,
-            accepted_by_admin_id: input.newStatus === "accepted" ? input.adminId : booking.accepted_by_admin_id,
-            accepted_at: input.newStatus === "accepted" ? new Date().toISOString() : booking.accepted_at,
-            rejected_by_admin_id: input.newStatus === "rejected" ? input.adminId : booking.rejected_by_admin_id,
-            rejected_at: input.newStatus === "rejected" ? new Date().toISOString() : booking.rejected_at,
-            rejection_reason: input.newStatus === "rejected" ? input.reason : booking.rejection_reason,
-            on_hold_reason: input.newStatus === "on_hold" ? input.reason : booking.on_hold_reason,
-            booking_slots:
-              input.newStatus === "rejected"
-                ? booking.booking_slots?.map((slot) => ({ ...slot, slot_status: "released" }))
-                : booking.booking_slots
-          }
-        : booking
-    );
-    return { error: null };
-  }
-
   try {
-    const client = requireSupabase();
+    const client = getWritableSupabase();
     const decisionFields =
       input.newStatus === "accepted"
         ? { accepted_by_admin_id: input.adminId, accepted_at: new Date().toISOString() }
@@ -153,52 +127,11 @@ export async function updateBookingStatus(input: {
 }
 
 export async function createBooking(input: CreateBookingInput): Promise<ServiceResult<Booking>> {
-  if (!hasSupabaseConfig) {
-    const now = new Date().toISOString();
-    const totalPrice = input.slots.reduce((sum, slot) => sum + slot.price, 0);
-    const bookingId = `local-${Date.now()}`;
-    const bookingReference = `SCB-${new Date().getFullYear()}-${String(localBookings.length + 1).padStart(6, "0")}`;
-    const booking: Booking = {
-      booking_id: bookingId,
-      booking_reference: bookingReference,
-      customer_nic: input.customer.nic,
-      booking_date: input.bookingDate,
-      number_of_people: input.numberOfPeople,
-      status: input.createAsAccepted ? "accepted" : "submitted",
-      remarks: input.remarks,
-      total_price: totalPrice,
-      currency: "LKR",
-      accepted_by_admin_id: input.createAsAccepted ? input.adminId : null,
-      accepted_at: input.createAsAccepted ? now : null,
-      created_at: now,
-      customers: input.customer,
-      booking_slots: input.slots.map((slot, index) => ({
-        id: `${bookingId}-slot-${index}`,
-        booking_id: bookingId,
-        track_id: input.trackId,
-        slot_date: input.bookingDate,
-        start_time: slot.startTime,
-        end_time: slot.endTime,
-        price_at_booking: slot.price,
-        slot_status: "active"
-      })),
-      booking_payments: [
-        {
-          id: `${bookingId}-payment`,
-          booking_id: bookingId,
-          payment_method: input.paymentMethod,
-          payment_proof_path: input.paymentProofPath ?? null
-        }
-      ]
-    };
-    localBookings = [booking, ...localBookings];
-    return { data: booking, error: null };
-  }
+  const bookingReference = makeBookingReference();
 
   try {
-    const client = requireSupabase();
+    const client = getWritableSupabase();
     const totalPrice = input.slots.reduce((sum, slot) => sum + slot.price, 0);
-    const bookingReference = `SCB-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
 
     const { error: customerError } = await client.from("customers").upsert(input.customer);
     if (customerError) throw customerError;
@@ -213,7 +146,7 @@ export async function createBooking(input: CreateBookingInput): Promise<ServiceR
         status: input.createAsAccepted ? "accepted" : "submitted",
         remarks: input.remarks,
         total_price: totalPrice,
-        currency: "LKR",
+        currency: getDefaultCurrency(),
         accepted_by_admin_id: input.createAsAccepted ? input.adminId : null,
         accepted_at: input.createAsAccepted ? new Date().toISOString() : null
       })

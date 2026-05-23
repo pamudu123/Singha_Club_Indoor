@@ -1,3 +1,4 @@
+import { localAdminId } from "@/constants/admin";
 import type { AdminUser, ServiceResult } from "@/types/database";
 import { hasSupabaseConfig, requireSupabase, toServiceError } from "./supabase";
 import { isEmail } from "./validation";
@@ -43,7 +44,7 @@ export async function login(username: string): Promise<ServiceResult<AdminUser>>
 
   return {
     data: {
-      id: "local-admin",
+      id: localAdminId,
       full_name: username.trim(),
       email: username.includes("@") ? username : `${username.trim().replace(/\s+/g, ".").toLowerCase()}@singha.local`,
       whatsapp_number: "+94 77 123 4567"
@@ -89,6 +90,51 @@ export async function signup(input: {
   return {
     data: {
       id: createAdminId(),
+      full_name: fullName,
+      email,
+      whatsapp_number: whatsappNumber,
+      is_active: true
+    },
+    error: null
+  };
+}
+
+export async function updateAdminProfile(id: string, input: {
+  fullName: string;
+  whatsappNumber: string;
+  email: string;
+}): Promise<ServiceResult<AdminUser>> {
+  const fullName = input.fullName.trim();
+  const whatsappNumber = input.whatsappNumber.trim();
+  const email = input.email.trim();
+
+  if (!fullName) return { data: null, error: "Name is required." };
+  if (!whatsappNumber) return { data: null, error: "WhatsApp number is required." };
+  if (!isEmail(email)) return { data: null, error: "Enter a valid email address." };
+
+  if (hasSupabaseConfig) {
+    try {
+      const { data, error } = await requireSupabase()
+        .from("admin_users")
+        .update({
+          full_name: fullName,
+          email,
+          whatsapp_number: whatsappNumber,
+        })
+        .eq("id", id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      return { data: data as AdminUser, error: null };
+    } catch (error) {
+      return { data: null, error: toServiceError(error) };
+    }
+  }
+
+  return {
+    data: {
+      id,
       full_name: fullName,
       email,
       whatsapp_number: whatsappNumber,

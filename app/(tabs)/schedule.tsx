@@ -1,7 +1,6 @@
-import { router } from "expo-router";
-import { CalendarPlus, ChevronLeft, ChevronRight, Plus } from "lucide-react-native";
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { Card } from "@/components/ui/Card";
@@ -12,13 +11,25 @@ import { Screen } from "@/components/ui/Screen";
 import { addDays, displayTime, formatDateLabel, todayISO } from "@/lib/date";
 import { getDaySchedule } from "@/lib/scheduleService";
 import { useAsyncData } from "@/hooks/useAsyncData";
-import { tracks } from "@/constants/mockData";
+import { useTracks } from "@/hooks/useTracks";
 import type { BookingStatus } from "@/types/database";
 
 export default function ScheduleScreen() {
-  const [track, setTrack] = useState<string>(tracks[0].id);
+  const [track, setTrack] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState(todayISO());
-  const { data, error, loading } = useAsyncData(() => getDaySchedule({ selectedDate, trackId: track }), [track, selectedDate]);
+  const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
+  const { data, error, loading } = useAsyncData(
+    () =>
+      track
+        ? getDaySchedule({ selectedDate, trackId: track })
+        : Promise.resolve({ data: { bookingSlots: [], blockedSlots: [] }, error: null }),
+    [track, selectedDate]
+  );
+
+  useEffect(() => {
+    if (!track && tracks[0]) setTrack(tracks[0].id);
+    if (track && tracks.length && !tracks.some((item) => item.id === track)) setTrack(tracks[0].id);
+  }, [track, tracks]);
   const dayStrip = [-3, -2, -1, 0, 1, 2, 3].map((offset) => {
     const date = addDays(selectedDate, offset);
     return {
@@ -54,13 +65,11 @@ export default function ScheduleScreen() {
       <SegmentedFilter
         value={track}
         onChange={setTrack}
-        options={[
-          ...tracks.map((item) => ({ label: item.track_name, value: item.id }))
-        ]}
+        options={trackOptions}
       />
 
-      {loading ? <LoadingState label="Loading schedule..." /> : null}
-      {error ? <ErrorState message={error} /> : null}
+      {tracksLoading || loading ? <LoadingState label="Loading schedule..." /> : null}
+      {tracksError || error ? <ErrorState message={tracksError ?? error ?? ""} /> : null}
 
       <Card className="mt-5">
         {data?.bookingSlots.map((slot) => {
@@ -79,20 +88,7 @@ export default function ScheduleScreen() {
         {data?.blockedSlots.map((slot) => (
           <ScheduleRow key={slot.id} time={`${displayTime(slot.start_time)} - ${displayTime(slot.end_time)}`} title={slot.reason} subtitle="Unavailable" status="blocked" />
         ))}
-        <Pressable className="mt-3 flex-row items-center justify-between rounded-xl border border-line bg-white p-4" onPress={() => router.push("/create-booking")}>
-          <View>
-            <Text className="text-lg font-bold text-ink">Available</Text>
-            <Text className="mt-1 text-muted">Tap to create booking</Text>
-          </View>
-          <View className="h-11 w-11 items-center justify-center rounded-full border border-singha-600">
-            <Plus size={24} color="#087d24" />
-          </View>
-        </Pressable>
       </Card>
-
-      <Pressable className="absolute bottom-24 right-6 h-16 w-16 items-center justify-center rounded-full bg-singha-600 shadow-lg" onPress={() => router.push("/create-booking")}>
-        <CalendarPlus size={30} color="#fff" />
-      </Pressable>
     </Screen>
   );
 }

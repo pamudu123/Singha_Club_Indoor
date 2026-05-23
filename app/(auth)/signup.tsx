@@ -5,7 +5,7 @@ import { Alert, Image, Text, View } from "react-native";
 import { logo } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
 import { signup } from "@/lib/authService";
-import { validateSignup } from "@/lib/validation";
+import { formatWhatsapp, validateSignup } from "@/lib/validation";
 import { AppButton } from "@/components/ui/AppButton";
 import { FormField } from "@/components/ui/FormField";
 import { Screen } from "@/components/ui/Screen";
@@ -44,7 +44,7 @@ export default function SignupScreen() {
 
       <View className="mt-8 gap-4">
         <FormField label="Name" icon={User} value={fullName} onChangeText={setFullName} />
-        <FormField label="WhatsApp Number" icon={Phone} value={whatsappNumber} onChangeText={setWhatsappNumber} keyboardType="phone-pad" />
+        <FormField label="WhatsApp Number" icon={Phone} value={whatsappNumber} onChangeText={(text) => setWhatsappNumber(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
         <FormField label="Email" icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={formError} />
         <AppButton title="Create Account" loading={loading} onPress={onSubmit} />
       </View>

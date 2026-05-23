@@ -1,6 +1,6 @@
-import { Pencil, PlusCircle } from "lucide-react-native";
-import { useState } from "react";
-import { Alert, Modal, Pressable, Text, View } from "react-native";
+import { CheckCircle2, Lock, Pencil, PlusCircle } from "lucide-react-native";
+import { useEffect, useState } from "react";
+import { Alert, Modal, Pressable, Text, TextInput, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { AppButton } from "@/components/ui/AppButton";
@@ -11,12 +11,14 @@ import { SelectField } from "@/components/ui/SelectField";
 import { ErrorState, LoadingState } from "@/components/ui/StateView";
 import { Screen } from "@/components/ui/Screen";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useTracks } from "@/hooks/useTracks";
 import { displayTime, displayTimeToDb, formatCurrency, formatDateLabel, todayISO } from "@/lib/date";
-import { createSlotPrice, listSlotPrices, updateSlotPrice } from "@/lib/pricingService";
-import { slotTimes, tracks } from "@/constants/mockData";
+import { createSlotPrice, getDefaultCurrency, getDefaultSlotPrice, listSlotPrices, updateDefaultSlotPrice, updateSlotPrice } from "@/lib/pricingService";
+import { slotTimes } from "@/constants/booking";
 import type { DayType, SlotPrice } from "@/types/database";
 
 type ActiveValue = "active" | "inactive";
+type EffectiveToMode = "none" | "date";
 
 const timeOptions = slotTimes.map((time) => ({ label: time, value: displayTimeToDb(time) }));
 const dayTypeOptions: { label: string; value: DayType }[] = [
@@ -27,7 +29,7 @@ const dayTypeOptions: { label: string; value: DayType }[] = [
 ];
 
 export default function PricingScreen() {
-  const [track, setTrack] = useState<string>(tracks[0].id);
+  const [track, setTrack] = useState<string>("");
   const [editing, setEditing] = useState<SlotPrice | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [startTime, setStartTime] = useState("18:00");
@@ -36,18 +38,33 @@ export default function PricingScreen() {
   const [price, setPrice] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
   const [effectiveTo, setEffectiveTo] = useState("");
+  const [effectiveToMode, setEffectiveToMode] = useState<EffectiveToMode>("none");
   const [active, setActive] = useState<ActiveValue>("active");
   const [saving, setSaving] = useState(false);
-  const { data, error, loading, refresh } = useAsyncData(() => listSlotPrices(track), [track]);
+  const [defaultPrice, setDefaultPrice] = useState(getDefaultSlotPrice());
+  const [defaultPriceInput, setDefaultPriceInput] = useState(String(getDefaultSlotPrice()));
+  const [defaultPriceUnlocked, setDefaultPriceUnlocked] = useState(false);
+  const defaultCurrency = getDefaultCurrency();
+  const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
+  const { data, error, loading, refresh } = useAsyncData(
+    () => (track ? listSlotPrices(track) : Promise.resolve({ data: [], error: null })),
+    [track]
+  );
+
+  useEffect(() => {
+    if (!track && tracks[0]) setTrack(tracks[0].id);
+    if (track && tracks.length && !tracks.some((item) => item.id === track)) setTrack(tracks[0].id);
+  }, [track, tracks]);
 
   function openAdd() {
     setEditing(null);
     setStartTime("18:00");
     setEndTime("19:00");
     setDayType("all_days");
-    setPrice("");
+    setPrice(String(defaultPrice));
     setEffectiveFrom(todayISO());
     setEffectiveTo("");
+    setEffectiveToMode("none");
     setActive("active");
     setModalOpen(true);
   }
@@ -60,8 +77,31 @@ export default function PricingScreen() {
     setPrice(String(slotPrice.price));
     setEffectiveFrom(slotPrice.effective_from);
     setEffectiveTo(slotPrice.effective_to ?? "");
+    setEffectiveToMode(slotPrice.effective_to ? "date" : "none");
     setActive(slotPrice.is_active ? "active" : "inactive");
     setModalOpen(true);
+  }
+
+  function toggleDefaultPriceLock() {
+    if (defaultPriceUnlocked) {
+      saveDefaultPrice();
+      return;
+    }
+
+    setDefaultPriceInput(String(defaultPrice));
+    setDefaultPriceUnlocked(true);
+  }
+
+  function saveDefaultPrice() {
+    const numericPrice = Number(defaultPriceInput);
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+      Alert.alert("Invalid default price", "Enter a default price greater than 0.");
+      return;
+    }
+
+    setDefaultPrice(numericPrice);
+    updateDefaultSlotPrice(numericPrice);
+    setDefaultPriceUnlocked(false);
   }
 
   async function savePriceRule() {
@@ -74,18 +114,32 @@ export default function PricingScreen() {
       Alert.alert("Invalid time range", "End time must be after start time.");
       return;
     }
+    if (effectiveFrom < todayISO()) {
+      Alert.alert("Invalid effective date", "Effective From cannot be before today.");
+      return;
+    }
+    if (effectiveToMode === "date" && effectiveTo < effectiveFrom) {
+      Alert.alert("Invalid effective date", "Effective To must be on or after Effective From.");
+      return;
+    }
+    if (!track) {
+      Alert.alert("Track required", "Add active tracks in Supabase before creating price rules.");
+      return;
+    }
 
+    const effectiveToValue = effectiveToMode === "date" ? effectiveTo : null;
     setSaving(true);
     const result = editing
       ? await updateSlotPrice({
           id: editing.id,
+          trackId: editing.track_id,
           startTime,
           endTime,
           dayType,
           price: numericPrice,
           currency: editing.currency,
           effectiveFrom,
-          effectiveTo: effectiveTo || null,
+          effectiveTo: effectiveToValue,
           isActive: active === "active"
         })
       : await createSlotPrice({
@@ -94,9 +148,9 @@ export default function PricingScreen() {
           endTime,
           dayType,
           price: numericPrice,
-          currency: "LKR",
+          currency: defaultCurrency,
           effectiveFrom,
-          effectiveTo: effectiveTo || null,
+          effectiveTo: effectiveToValue,
           isActive: active === "active"
         });
     setSaving(false);
@@ -111,16 +165,42 @@ export default function PricingScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Pricing" showBack />
+      <AppHeader title="Pricing" />
       <SegmentedFilter
         value={track}
         onChange={setTrack}
-        options={[
-          ...tracks.map((item) => ({ label: item.track_name, value: item.id }))
-        ]}
+        options={trackOptions}
       />
+      {tracksLoading ? <LoadingState label="Loading tracks..." /> : null}
+      {tracksError ? <ErrorState message={tracksError} /> : null}
+
+      <Card className="mt-5">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1">
+            <Text className="text-sm text-muted">Default price per slot</Text>
+            <View className="mt-2 h-12 justify-center">
+              {defaultPriceUnlocked ? (
+                <TextInput
+                  className="h-12 rounded-xl border border-line bg-surface px-3 text-xl font-bold text-ink"
+                  value={defaultPriceInput}
+                  onChangeText={setDefaultPriceInput}
+                  keyboardType="numeric"
+                />
+              ) : (
+                <Text className="text-2xl font-bold text-ink">{formatCurrency(defaultPrice, defaultCurrency)}</Text>
+              )}
+            </View>
+          </View>
+          <View className="ml-4 flex-row gap-2">
+            <Pressable className={`h-12 w-12 items-center justify-center rounded-xl border ${defaultPriceUnlocked ? "border-singha-600 bg-singha-50" : "border-line bg-white"}`} onPress={toggleDefaultPriceLock}>
+              {defaultPriceUnlocked ? <CheckCircle2 size={22} color="#087d24" /> : <Lock size={22} color="#667085" />}
+            </Pressable>
+          </View>
+        </View>
+      </Card>
+
       <View className="my-5 flex-row items-center justify-between">
-        <Text className="flex-1 text-base text-ink">Manage slot prices. Prices apply to new bookings only.</Text>
+        <Text className="flex-1 text-base text-ink">Manage slot prices by track, time, and effective date.</Text>
         <AppButton title="Add Price Rule" icon={PlusCircle} className="ml-3" onPress={openAdd} />
       </View>
       {loading ? <LoadingState label="Loading prices..." /> : null}
@@ -158,9 +238,20 @@ export default function PricingScreen() {
               <SelectField label="Start Time" value={startTime} onChange={setStartTime} options={timeOptions} />
               <SelectField label="End Time" value={endTime} onChange={setEndTime} options={timeOptions} />
               <SelectField label="Day Type" value={dayType} onChange={setDayType} options={dayTypeOptions} />
-              <FormField label="Price" value={price} onChangeText={setPrice} keyboardType="numeric" placeholder="1500" />
-              <DatePickerField label="Effective From" value={effectiveFrom} onChange={setEffectiveFrom} />
-              <FormField label="Effective To" value={effectiveTo} onChangeText={setEffectiveTo} placeholder="Leave blank for no end date" />
+              <FormField label="Price" value={price} onChangeText={setPrice} keyboardType="numeric" placeholder={String(defaultPrice)} />
+              <DatePickerField label="Effective From" value={effectiveFrom} onChange={setEffectiveFrom} minDate={todayISO()} />
+              <SegmentedFilter
+                value={effectiveToMode}
+                onChange={(value) => {
+                  setEffectiveToMode(value);
+                  if (value === "date" && !effectiveTo) setEffectiveTo(effectiveFrom);
+                }}
+                options={[
+                  { label: "No end date", value: "none" },
+                  { label: "Set end date", value: "date" }
+                ]}
+              />
+              {effectiveToMode === "date" ? <DatePickerField label="Effective To" value={effectiveTo || effectiveFrom} onChange={setEffectiveTo} minDate={effectiveFrom} /> : null}
               <SegmentedFilter
                 value={active}
                 onChange={setActive}

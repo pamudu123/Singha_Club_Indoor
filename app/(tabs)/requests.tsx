@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { BookingCard } from "@/components/BookingCard";
@@ -8,9 +9,9 @@ import { FormField } from "@/components/ui/FormField";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/StateView";
 import { Screen } from "@/components/ui/Screen";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useTracks } from "@/hooks/useTracks";
 import { addDays, todayISO } from "@/lib/date";
 import { listBookings } from "@/lib/bookingService";
-import { tracks } from "@/constants/mockData";
 import type { BookingStatus } from "@/types/database";
 
 type Filter = "all" | BookingStatus;
@@ -27,7 +28,14 @@ export default function RequestsScreen() {
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [trackFilter, setTrackFilter] = useState<TrackFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-  const { data, error, loading } = useAsyncData(() => listBookings(), []);
+  const { trackOptions, error: tracksError } = useTracks();
+  const { data, error, loading, refresh } = useAsyncData(() => listBookings(), []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
   const bookings = useMemo(() => data ?? [], [data]);
   const filtered = useMemo(
     () =>
@@ -89,44 +97,61 @@ export default function RequestsScreen() {
         ]}
       />
       {showFilters ? (
-        <View className="mt-5 gap-4">
-          <SegmentedFilter
-            value={dateFilter}
-            onChange={setDateFilter}
-            options={[
-              { label: "All Dates", value: "all" },
-              { label: "Selected", value: "date" },
-              { label: "Tomorrow", value: "tomorrow" },
-              { label: "This Week", value: "week" }
-            ]}
-          />
-          {dateFilter === "date" || dateFilter === "week" ? <DatePickerField label="Filter Date" value={selectedDate} onChange={setSelectedDate} /> : null}
-          <SegmentedFilter
-            value={trackFilter}
-            onChange={setTrackFilter}
-            options={[
-              { label: "All Tracks", value: "all" },
-              ...tracks.map((item) => ({ label: item.track_name, value: item.id }))
-            ]}
-          />
-          <SegmentedFilter
-            value={paymentFilter}
-            onChange={setPaymentFilter}
-            options={[
-              { label: "Any Payment", value: "all" },
-              { label: "Payment Proof", value: "payment_proof" },
-              { label: "Pay on Arrival", value: "pay_on_arrival" }
-            ]}
-          />
+        <View className="mt-5">
+          <FilterCategory title="Date">
+            <SegmentedFilter
+              value={dateFilter}
+              onChange={setDateFilter}
+              options={[
+                { label: "All Dates", value: "all" },
+                { label: "Selected", value: "date" },
+                { label: "Tomorrow", value: "tomorrow" },
+                { label: "This Week", value: "week" }
+              ]}
+            />
+            {dateFilter === "date" || dateFilter === "week" ? <DatePickerField className="mt-4" label="Filter Date" value={selectedDate} onChange={setSelectedDate} /> : null}
+          </FilterCategory>
+
+          <FilterCategory title="Track">
+            <SegmentedFilter
+              value={trackFilter}
+              onChange={setTrackFilter}
+              options={[
+                { label: "All Tracks", value: "all" },
+                ...trackOptions
+              ]}
+            />
+          </FilterCategory>
+
+          <FilterCategory title="Payment">
+            <SegmentedFilter
+              value={paymentFilter}
+              onChange={setPaymentFilter}
+              options={[
+                { label: "Any Payment", value: "all" },
+                { label: "Payment Proof", value: "payment_proof" },
+                { label: "Pay on Arrival", value: "pay_on_arrival" }
+              ]}
+            />
+          </FilterCategory>
         </View>
       ) : null}
       <Text className="mb-4 mt-5 text-sm text-muted">{filtered.length} of {bookings.length} requests shown</Text>
       {loading ? <LoadingState label="Loading booking requests..." /> : null}
-      {error ? <ErrorState message={error} /> : null}
+      {error || tracksError ? <ErrorState message={error ?? tracksError ?? ""} /> : null}
       {!loading && filtered.length === 0 ? <EmptyState title="No requests found" message="New booking requests will appear here." /> : null}
       {filtered.map((booking, index) => (
         <BookingCard key={booking.booking_id} booking={booking} expanded={index === 0 && filter !== "accepted"} />
       ))}
     </Screen>
+  );
+}
+
+function FilterCategory({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View className="border-t border-line py-4">
+      <Text className="mb-3 text-sm font-semibold uppercase text-muted">{title}</Text>
+      {children}
+    </View>
   );
 }

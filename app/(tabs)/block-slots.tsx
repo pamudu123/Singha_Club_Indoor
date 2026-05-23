@@ -1,5 +1,5 @@
 import { LockKeyhole, Trash2 } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
@@ -7,9 +7,11 @@ import { Card } from "@/components/ui/Card";
 import { DatePickerField } from "@/components/ui/DatePickerField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Screen } from "@/components/ui/Screen";
-import { slotTimes, tracks } from "@/constants/mockData";
+import { localAdminId } from "@/constants/admin";
+import { slotTimes } from "@/constants/booking";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useTracks } from "@/hooks/useTracks";
 import { createBlockedSlots, deleteBlockedSlot, listBlockedSlots } from "@/lib/scheduleService";
 import { displayTime, displayTimeToDb, formatDateLabel, makeThirtyMinuteSlots, todayISO } from "@/lib/date";
 
@@ -19,19 +21,29 @@ const timeOptions = slotTimes.map((time) => ({ label: time, value: displayTimeTo
 
 export default function BlockSlotsScreen() {
   const { admin } = useAuth();
-  const [track, setTrack] = useState<string>(tracks[0].id);
+  const [track, setTrack] = useState<string>("");
   const [slotDate, setSlotDate] = useState(todayISO());
   const [startTime, setStartTime] = useState("18:00");
   const [endTime, setEndTime] = useState("20:00");
   const [reason, setReason] = useState<Reason>("Maintenance");
   const [loading, setLoading] = useState(false);
+  const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
   const slots = useMemo(() => makeThirtyMinuteSlots(startTime, endTime), [startTime, endTime]);
   const { data: existingBlockedSlots, error, loading: blockedLoading, refresh } = useAsyncData(
-    () => listBlockedSlots({ trackId: track, slotDate }),
+    () => (track ? listBlockedSlots({ trackId: track, slotDate }) : Promise.resolve({ data: [], error: null })),
     [track, slotDate]
   );
 
+  useEffect(() => {
+    if (!track && tracks[0]) setTrack(tracks[0].id);
+    if (track && tracks.length && !tracks.some((item) => item.id === track)) setTrack(tracks[0].id);
+  }, [track, tracks]);
+
   async function submit() {
+    if (!track) {
+      Alert.alert("Track required", "Add active tracks in Supabase before blocking slots.");
+      return;
+    }
     if (!slots.length) {
       Alert.alert("Invalid time range", "End time must be after start time and use 30-minute intervals.");
       return;
@@ -42,7 +54,7 @@ export default function BlockSlotsScreen() {
       slotDate,
       slots,
       reason,
-      adminId: admin?.id ?? "local-admin"
+      adminId: admin?.id ?? localAdminId
     });
     setLoading(false);
     if (result.error) Alert.alert("Could not block slots", result.error);
@@ -60,15 +72,17 @@ export default function BlockSlotsScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Block Slots" subtitle="Indoor Cricket Booking System" showBack />
+      <AppHeader title="Block Slots" subtitle="Indoor Cricket Booking System" />
       <Card>
         <View className="gap-4">
           <SelectField
             label="Track *"
             value={track}
             onChange={setTrack}
-            options={tracks.map((item) => ({ label: item.track_name, value: item.id }))}
+            options={trackOptions}
           />
+          {tracksLoading ? <Text className="text-muted">Loading tracks...</Text> : null}
+          {tracksError ? <Text className="text-red-500">{tracksError}</Text> : null}
           <DatePickerField label="Date *" value={slotDate} onChange={setSlotDate} />
           <SelectField label="Start Time *" value={startTime} onChange={setStartTime} options={timeOptions} />
           <SelectField label="End Time *" value={endTime} onChange={setEndTime} options={timeOptions} />

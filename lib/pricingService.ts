@@ -1,14 +1,38 @@
-import { slotPrices } from "@/constants/mockData";
+import { initialDefaultCurrency, initialDefaultSlotPrice, type CurrencyCode } from "@/constants/pricing";
+import { configuredTracks } from "@/constants/tracks";
 import type { DayType, ServiceResult, SlotPrice } from "@/types/database";
-import { hasSupabaseConfig, requireSupabase, toServiceError } from "./supabase";
+import { getWritableSupabase, requireSupabase, supabaseAdmin, toServiceError } from "./supabase";
 
-let localSlotPrices = [...slotPrices];
+let defaultSlotPrice = initialDefaultSlotPrice;
+let defaultCurrency: CurrencyCode = initialDefaultCurrency;
+
+export function getDefaultSlotPrice() {
+  return defaultSlotPrice;
+}
+
+export function updateDefaultSlotPrice(price: number) {
+  defaultSlotPrice = price;
+}
+
+export function getDefaultCurrency() {
+  return defaultCurrency;
+}
+
+export function updateDefaultCurrency(currency: CurrencyCode) {
+  defaultCurrency = currency;
+}
+
+function decorateSlotPrice(slotPrice: SlotPrice): SlotPrice {
+  return {
+    ...slotPrice,
+    tracks: slotPrice.tracks ?? configuredTracks.find((track) => track.id === slotPrice.track_id) ?? null
+  };
+}
 
 export async function listSlotPrices(trackId: string): Promise<ServiceResult<SlotPrice[]>> {
-  if (!hasSupabaseConfig) return { data: localSlotPrices.filter((price) => price.track_id === trackId), error: null };
-
   try {
-    const { data, error } = await requireSupabase()
+    const client = supabaseAdmin ?? requireSupabase();
+    const { data, error } = await client
       .from("slot_prices")
       .select(
         `
@@ -31,7 +55,7 @@ export async function listSlotPrices(trackId: string): Promise<ServiceResult<Slo
       .eq("track_id", trackId)
       .order("start_time");
     if (error) throw error;
-    return { data: (data as unknown as SlotPrice[]) ?? [], error: null };
+    return { data: ((data as unknown as SlotPrice[]) ?? []).map(decorateSlotPrice), error: null };
   } catch (error) {
     return { data: null, error: toServiceError(error) };
   }
@@ -48,25 +72,8 @@ export async function createSlotPrice(input: {
   effectiveTo?: string | null;
   isActive: boolean;
 }): Promise<ServiceResult<SlotPrice>> {
-  if (!hasSupabaseConfig) {
-    const price: SlotPrice = {
-      id: `local-price-${Date.now()}`,
-      track_id: input.trackId,
-      start_time: input.startTime,
-      end_time: input.endTime,
-      day_type: input.dayType,
-      price: input.price,
-      currency: input.currency,
-      effective_from: input.effectiveFrom,
-      effective_to: input.effectiveTo ?? null,
-      is_active: input.isActive
-    };
-    localSlotPrices = [...localSlotPrices, price];
-    return { data: price, error: null };
-  }
-
   try {
-    const { data, error } = await requireSupabase()
+    const { data, error } = await getWritableSupabase()
       .from("slot_prices")
       .insert({
         track_id: input.trackId,
@@ -82,7 +89,7 @@ export async function createSlotPrice(input: {
       .select("*")
       .single();
     if (error) throw error;
-    return { data: data as SlotPrice, error: null };
+    return { data: decorateSlotPrice(data as SlotPrice), error: null };
   } catch (error) {
     return { data: null, error: toServiceError(error) };
   }
@@ -90,6 +97,7 @@ export async function createSlotPrice(input: {
 
 export async function updateSlotPrice(input: {
   id: string;
+  trackId?: string;
   startTime?: string;
   endTime?: string;
   dayType?: DayType;
@@ -99,25 +107,6 @@ export async function updateSlotPrice(input: {
   effectiveTo?: string | null;
   isActive?: boolean;
 }) {
-  if (!hasSupabaseConfig) {
-    localSlotPrices = localSlotPrices.map((price) =>
-      price.id === input.id
-        ? {
-            ...price,
-            start_time: input.startTime ?? price.start_time,
-            end_time: input.endTime ?? price.end_time,
-            day_type: input.dayType ?? price.day_type,
-            price: input.price ?? price.price,
-            currency: input.currency ?? price.currency,
-            effective_from: input.effectiveFrom ?? price.effective_from,
-            effective_to: input.effectiveTo === undefined ? price.effective_to : input.effectiveTo,
-            is_active: input.isActive ?? price.is_active
-          }
-        : price
-    );
-    return { error: null };
-  }
-
   try {
     const updates = {
       ...(input.startTime ? { start_time: input.startTime } : {}),
@@ -129,7 +118,7 @@ export async function updateSlotPrice(input: {
       ...(input.effectiveTo !== undefined ? { effective_to: input.effectiveTo } : {}),
       ...(typeof input.isActive === "boolean" ? { is_active: input.isActive } : {})
     };
-    const { error } = await requireSupabase()
+    const { error } = await getWritableSupabase()
       .from("slot_prices")
       .update(updates)
       .eq("id", input.id);

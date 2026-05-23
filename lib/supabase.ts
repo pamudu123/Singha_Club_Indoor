@@ -9,6 +9,7 @@ const supabaseAnonKey =
   process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
   process.env.VITE_SUPABASE_ANON_KEY ??
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -23,6 +24,15 @@ export const supabase: SupabaseClient | null = hasSupabaseConfig
     })
   : null;
 
+export const supabaseAdmin: SupabaseClient | null = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null;
+
 export function requireSupabase() {
   if (!supabase) {
     throw new Error("Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.");
@@ -30,7 +40,14 @@ export function requireSupabase() {
   return supabase;
 }
 
+export function getWritableSupabase() {
+  return supabaseAdmin ?? requireSupabase();
+}
+
 export function toServiceError(error: unknown) {
   if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
   return "Something went wrong. Please try again.";
 }

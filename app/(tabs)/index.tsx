@@ -38,10 +38,6 @@ export default function DashboardScreen() {
             </View>
             <View className="flex-row gap-3">
               <StatCard title="On Hold" value={String(data.onHoldBookings)} icon={PauseCircle} tone="orange" />
-              <StatCard title="Today's Revenue" value={formatCurrency(data.todayRevenue)} icon={Coins} />
-            </View>
-            <View className="flex-row gap-3">
-              <StatCard title="This Week's Revenue" value={formatCurrency(data.weekRevenue)} icon={BarChart3} />
               <StatCard title="Blocked Slots Today" value={String(data.blockedSlotsToday)} icon={LockKeyhole} tone="red" />
             </View>
           </View>
@@ -55,19 +51,7 @@ export default function DashboardScreen() {
             <QuickAction title="View Requests" icon={Users} onPress={() => router.push("/(tabs)/requests")} />
           </View>
 
-          <Card className="mt-7">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-ink">Recent Activity & Alerts</Text>
-              <Text className="font-semibold text-singha-700">View all</Text>
-            </View>
-            {data.recentActivity.map((item) => (
-              <View key={item.id} className="border-t border-line py-4">
-                <Text className="font-semibold text-ink">{item.title}</Text>
-                <Text className="mt-1 text-muted">{item.subtitle}</Text>
-                <Text className="mt-1 text-sm text-muted">{item.time}</Text>
-              </View>
-            ))}
-          </Card>
+
         </>
       ) : null}
     </Screen>

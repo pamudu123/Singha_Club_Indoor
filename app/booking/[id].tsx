@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { FormField } from "@/components/ui/FormField";
 import { ErrorState, LoadingState } from "@/components/ui/StateView";
 import { Screen } from "@/components/ui/Screen";
+import { localAdminId } from "@/constants/admin";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { getBooking, updateBookingStatus } from "@/lib/bookingService";
@@ -27,7 +28,7 @@ export default function BookingDetailsScreen() {
       bookingId: booking.booking_id,
       oldStatus: booking.status,
       newStatus,
-      adminId: admin?.id ?? "local-admin",
+      adminId: admin?.id ?? localAdminId,
       reason: statusReason ?? (newStatus === "accepted" ? "Booking accepted by admin" : `Booking marked ${newStatus}`)
     });
     if (result.error) Alert.alert("Status update failed", result.error);

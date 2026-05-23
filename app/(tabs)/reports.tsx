@@ -9,12 +9,23 @@ import { Screen } from "@/components/ui/Screen";
 import { useState } from "react";
 import { todayISO } from "@/lib/date";
 
-const bars = [18750, 22300, 27850, 24100, 30200, 28600, 32450];
+const barsDay = [8750, 10300, 12850, 10100, 15200, 14600, 16450];
+const barsNight = [10000, 12000, 15000, 14000, 15000, 14000, 16000];
 const labels = ["May 17", "May 18", "May 19", "May 20", "May 21", "May 22", "May 23"];
 
+const timeBars = [4500, 8200, 12000, 6500, 2400];
+const timeLabels = ["8 AM", "12 PM", "4 PM", "8 PM", "10 PM"];
+
 export default function ReportsScreen() {
-  const [range, setRange] = useState<"today" | "week" | "month" | "track">("today");
+  const [range, setRange] = useState<"today" | "week" | "month" | "custom">("today");
   const [reportDate, setReportDate] = useState(todayISO());
+
+  const isDaily = range === "week" || range === "month";
+  
+  const currentBarsDay = isDaily ? barsDay : [16450];
+  const currentBarsNight = isDaily ? barsNight : [16000];
+  const currentLabels = isDaily ? labels : [range === "today" ? "Today" : "Selected Date"];
+  const maxTotal = Math.max(...currentBarsDay.map((d, i) => d + currentBarsNight[i]), 1);
 
   return (
     <Screen>
@@ -25,8 +36,6 @@ export default function ReportsScreen() {
           <Text className="mt-1 text-base text-muted">Track performance and booking insights.</Text>
         </View>
       </View>
-      <DatePickerField className="mb-5" label="Booking Date" value={reportDate} onChange={setReportDate} />
-
       <SegmentedFilter
         value={range}
         onChange={setRange}
@@ -34,9 +43,13 @@ export default function ReportsScreen() {
           { label: "Today", value: "today" },
           { label: "Week", value: "week" },
           { label: "Month", value: "month" },
-          { label: "Track", value: "track" }
+          { label: "Custom", value: "custom" }
         ]}
       />
+
+      {range === "custom" && (
+        <DatePickerField className="mt-5" label="Custom Date" value={reportDate} onChange={setReportDate} />
+      )}
 
       <View className="mt-5 flex-row gap-3">
         <StatCard title="Total Revenue" value="LKR 32,450" icon={Coins} />
@@ -49,17 +62,40 @@ export default function ReportsScreen() {
 
       <Card className="mt-6">
         <View className="mb-5 flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-ink">Revenue Overview</Text>
+          <View>
+            <Text className="text-xl font-bold text-ink">Revenue Overview</Text>
+            <View className="flex-row items-center mt-2 gap-3">
+              <View className="flex-row items-center gap-1">
+                <View className="w-3 h-3 rounded-full bg-green-500" />
+                <Text className="text-xs text-muted">Day (Upto 2PM)</Text>
+              </View>
+              <View className="flex-row items-center gap-1">
+                <View className="w-3 h-3 rounded-full bg-gray-400" />
+                <Text className="text-xs text-muted">Night (After 2PM)</Text>
+              </View>
+            </View>
+          </View>
           <Text className="font-semibold text-singha-700">View full report</Text>
         </View>
-        <View className="h-64 flex-row items-end justify-between">
-          {bars.map((value, index) => (
-            <View key={labels[index]} className="items-center">
-              <Text className="mb-2 text-xs text-ink">LKR {Math.round(value / 1000)}K</Text>
-              <View className="w-8 rounded-t-xl bg-singha-600" style={{ height: 50 + (value / 32450) * 130 }} />
-              <Text className="mt-2 text-xs text-muted">{labels[index]}</Text>
-            </View>
-          ))}
+        <View className={`h-64 flex-row items-end ${isDaily ? "justify-between" : "justify-center"}`}>
+          {currentBarsDay.map((dayVal, index) => {
+            const nightVal = currentBarsNight[index];
+            const total = dayVal + nightVal;
+            const dayHeightPercentage = (dayVal / total) * 100;
+            const nightHeightPercentage = (nightVal / total) * 100;
+            const barHeight = 50 + (total / maxTotal) * 130;
+            
+            return (
+              <View key={currentLabels[index]} className="items-center">
+                <Text className="mb-2 text-xs text-ink">LKR {Math.round(total / 1000)}K</Text>
+                <View className="w-8 rounded-t-xl overflow-hidden justify-end" style={{ height: barHeight }}>
+                  <View className="w-full bg-gray-400" style={{ height: `${nightHeightPercentage}%` }} />
+                  <View className="w-full bg-green-500" style={{ height: `${dayHeightPercentage}%` }} />
+                </View>
+                <Text className="mt-2 text-xs text-muted">{currentLabels[index]}</Text>
+              </View>
+            );
+          })}
         </View>
       </Card>
 
@@ -85,6 +121,39 @@ export default function ReportsScreen() {
           </View>
         </Card>
       </View>
+
+      <Card className="mt-5 mb-5">
+        <View className="mb-5 flex-row items-center justify-between">
+          <View>
+            <Text className="text-xl font-bold text-ink">Time Breakdown</Text>
+            <View className="flex-row items-center mt-2 gap-3">
+              <View className="flex-row items-center gap-1">
+                <View className="w-3 h-3 rounded-full bg-green-500" />
+                <Text className="text-xs text-muted">Day</Text>
+              </View>
+              <View className="flex-row items-center gap-1">
+                <View className="w-3 h-3 rounded-full bg-gray-400" />
+                <Text className="text-xs text-muted">Night</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <View className="h-64 flex-row items-end justify-between">
+          {timeBars.map((value, index) => {
+            const isDay = timeLabels[index].includes("AM") || timeLabels[index] === "12 PM" || timeLabels[index] === "1 PM" || timeLabels[index] === "2 PM";
+            return (
+              <View key={timeLabels[index]} className="items-center">
+                <Text className="mb-2 text-xs text-ink">LKR {Math.round(value / 1000)}K</Text>
+                <View 
+                  className={`w-8 rounded-t-xl ${isDay ? "bg-green-500" : "bg-gray-400"}`} 
+                  style={{ height: 50 + (value / Math.max(...timeBars, 1)) * 130 }} 
+                />
+                <Text className="mt-2 text-xs text-muted">{timeLabels[index]}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </Card>
     </Screen>
   );
 }

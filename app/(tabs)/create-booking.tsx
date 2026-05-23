@@ -1,8 +1,8 @@
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
-import { CalendarDays, CreditCard, FileUp, Mail, MessageSquare, Phone, User, Users } from "lucide-react-native";
-import { useMemo, useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { CalendarDays, CreditCard, FileUp, Mail, MessageSquare, Phone, RotateCcw, User, Users } from "lucide-react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { SlotPicker } from "@/components/SlotPicker";
 import { AppButton } from "@/components/ui/AppButton";
@@ -11,20 +11,24 @@ import { DatePickerField } from "@/components/ui/DatePickerField";
 import { FormField } from "@/components/ui/FormField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Screen } from "@/components/ui/Screen";
-import { TRACK_1_ID, slotTimes, tracks } from "@/constants/mockData";
+import { localAdminId } from "@/constants/admin";
+import { slotTimes } from "@/constants/booking";
 import { useAuth } from "@/hooks/useAuth";
+import { useTracks } from "@/hooks/useTracks";
 import { createBooking } from "@/lib/bookingService";
 import { displayTimeToDb, formatCurrency, todayISO } from "@/lib/date";
-import { validateBooking } from "@/lib/validation";
+import { getDefaultSlotPrice } from "@/lib/pricingService";
+import { formatWhatsapp, validateBooking } from "@/lib/validation";
 import type { PaymentMethod } from "@/types/database";
 
 export default function CreateBookingScreen() {
   const { admin } = useAuth();
+  const scrollRef = useRef<ScrollView>(null);
   const [name, setName] = useState("");
   const [nic, setNic] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
-  const [track, setTrack] = useState<string>(TRACK_1_ID);
+  const [track, setTrack] = useState<string>("");
   const [people, setPeople] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("payment_proof");
   const [remarks, setRemarks] = useState("");
@@ -32,8 +36,14 @@ export default function CreateBookingScreen() {
   const [proofName, setProofName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayISO());
-  const pricePerSlot = 1500;
+  const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
+  const pricePerSlot = getDefaultSlotPrice();
   const totalPrice = selectedSlots.length * pricePerSlot;
+
+  useEffect(() => {
+    if (!track && tracks[0]) setTrack(tracks[0].id);
+    if (track && tracks.length && !tracks.some((item) => item.id === track)) setTrack(tracks[0].id);
+  }, [track, tracks]);
 
   const slotRows = useMemo(
     () =>
@@ -45,11 +55,26 @@ export default function CreateBookingScreen() {
           price: pricePerSlot
         };
       }),
-    [selectedSlots]
+    [pricePerSlot, selectedSlots]
   );
 
   function toggleSlot(slot: string) {
     setSelectedSlots((current) => (current.includes(slot) ? current.filter((item) => item !== slot) : [...current, slot]));
+  }
+
+  function cancelBooking() {
+    setName("");
+    setNic("");
+    setWhatsapp("");
+    setEmail("");
+    setTrack(tracks[0]?.id ?? "");
+    setPeople(1);
+    setPaymentMethod("payment_proof");
+    setRemarks("");
+    setSelectedSlots([]);
+    setProofName(null);
+    setBookingDate(todayISO());
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   }
 
   async function pickProof() {
@@ -63,6 +88,10 @@ export default function CreateBookingScreen() {
     const validation = validateBooking({ name, nic, whatsapp, bookingDate, selectedSlots, people });
     if (validation) {
       Alert.alert("Check booking details", validation);
+      return;
+    }
+    if (!track) {
+      Alert.alert("Track required", "Add active tracks in Supabase before creating a booking.");
       return;
     }
     if (paymentMethod === "payment_proof" && !proofName) {
@@ -81,7 +110,7 @@ export default function CreateBookingScreen() {
       paymentProofPath: proofName,
       remarks,
       createAsAccepted,
-      adminId: admin?.id ?? "local-admin"
+      adminId: admin?.id ?? localAdminId
     });
     setLoading(false);
 
@@ -90,25 +119,27 @@ export default function CreateBookingScreen() {
       return;
     }
 
-    Alert.alert("Booking saved", "The booking request was created successfully.", [{ text: "OK", onPress: () => router.replace("/(tabs)/requests") }]);
+    Alert.alert("Booking saved", "The booking request was created successfully.", [{ text: "OK", onPress: () => router.replace("/(tabs)") }]);
   }
 
   return (
-    <Screen>
-      <AppHeader title="Create Booking" subtitle="Indoor Cricket Booking System" showBack />
+    <Screen ref={scrollRef}>
+      <AppHeader title="Create Booking" subtitle="Indoor Cricket Booking System" />
       <Text className="mb-4 text-2xl font-bold text-ink">Booking Details</Text>
 
       <View className="gap-4">
         <FormField label="Customer Name *" icon={User} value={name} onChangeText={setName} placeholder="Customer full name" />
         <FormField label="NIC *" icon={CreditCard} value={nic} onChangeText={setNic} placeholder="990123456V" autoCapitalize="characters" />
-        <FormField label="WhatsApp Number *" icon={Phone} value={whatsapp} onChangeText={setWhatsapp} placeholder="+94 77 123 4567" keyboardType="phone-pad" />
+        <FormField label="WhatsApp Number *" icon={Phone} value={whatsapp} onChangeText={(text) => setWhatsapp(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
         <FormField label="Email" icon={Mail} value={email} onChangeText={setEmail} placeholder="customer@email.com" keyboardType="email-address" autoCapitalize="none" />
         <SelectField
           label="Track *"
           value={track}
           onChange={setTrack}
-          options={tracks.map((item) => ({ label: item.track_name, value: item.id }))}
+          options={trackOptions}
         />
+        {tracksLoading ? <Text className="text-muted">Loading tracks...</Text> : null}
+        {tracksError ? <Text className="text-red-500">{tracksError}</Text> : null}
         <DatePickerField label="Booking Date *" value={bookingDate} onChange={setBookingDate} />
       </View>
 
@@ -162,6 +193,7 @@ export default function CreateBookingScreen() {
       <View className="mt-5 gap-3">
         <AppButton title="Create Booking" icon={CalendarDays} loading={loading} onPress={() => submit(false)} />
         <AppButton title="Create as Accepted" variant="secondary" loading={loading} onPress={() => submit(true)} />
+        <AppButton title="Cancel" icon={RotateCcw} variant="ghost" disabled={loading} onPress={cancelBooking} />
       </View>
     </Screen>
   );
