@@ -6,12 +6,10 @@ import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
 import { localAdminId } from "@/constants/admin";
-import { supportedCurrencies, type CurrencyCode } from "@/constants/pricing";
 import { languageLabels } from "@/constants/translations";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { logout, updateAdminProfile } from "@/lib/authService";
-import { getDefaultCurrency, updateDefaultCurrency } from "@/lib/pricingService";
 import { formatWhatsapp } from "@/lib/validation";
 
 export default function SettingsScreen() {
@@ -29,7 +27,6 @@ export default function SettingsScreen() {
   const [name, setName] = useState(admin?.full_name ?? "Local Admin");
   const [whatsapp, setWhatsapp] = useState(admin?.whatsapp_number ?? "+94 77 123 4567");
   const [email, setEmail] = useState(admin?.email ?? "admin@singha.club");
-  const [currency, setCurrency] = useState<CurrencyCode>(getDefaultCurrency());
   const [maxSlots, setMaxSlots] = useState(10);
 
   async function onLogout() {
@@ -101,17 +98,6 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t("settings.bookingSettings")} subtitle={t("settings.bookingSettings.subtitle")} icon={Settings2}>
-        <SegmentedToggleRow
-          icon={Lock}
-          label={t("settings.bookingSettings.defaultCurrency")}
-          options={[...supportedCurrencies]}
-          value={currency}
-          onChange={(value) => {
-            const nextCurrency = value as CurrencyCode;
-            setCurrency(nextCurrency);
-            updateDefaultCurrency(nextCurrency);
-          }}
-        />
         <StepperRow icon={CheckCircle2} label={t("settings.bookingSettings.maxSlots")} value={maxSlots} onDecrement={() => setMaxSlots(Math.max(1, maxSlots - 1))} onIncrement={() => setMaxSlots(Math.min(50, maxSlots + 1))} />
       </SettingsSection>
 
@@ -160,7 +146,8 @@ function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardT
       <Text className="ml-4 min-w-28 flex-1 text-lg text-ink">{label}</Text>
       {isEditable ? (
         <TextInput
-          className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-right text-lg text-ink"
+          className="flex-1 rounded-lg border border-line bg-surface px-3 text-right text-lg text-ink"
+          style={{ height: 44, paddingTop: 0, paddingBottom: 0, lineHeight: 24, includeFontPadding: false }}
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}

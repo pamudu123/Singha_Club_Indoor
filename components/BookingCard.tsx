@@ -1,21 +1,27 @@
 import { Pressable, Text, View } from "react-native";
-import { CalendarDays, ChevronRight, Clock, CreditCard, Phone, Users } from "lucide-react-native";
-import { router } from "expo-router";
+import { CalendarDays, Clock, CreditCard, Phone, Users } from "lucide-react-native";
 import { colors } from "@/constants/theme";
 import { displayTime, formatCurrency, formatDateLabel } from "@/lib/date";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { Booking } from "@/types/database";
 import { StatusChip } from "./ui/StatusChip";
 
-export function BookingCard({ booking, expanded = false }: { booking: Booking; expanded?: boolean }) {
+type BookingCardProps = {
+  booking: Booking;
+  expanded?: boolean;
+  onPress?: () => void;
+};
+
+export function BookingCard({ booking, expanded = false, onPress }: BookingCardProps) {
   const { locale, t } = useLanguage();
   const slot = booking.booking_slots?.[0];
   const payment = booking.booking_payments?.[0];
 
   return (
     <Pressable
-      className={`mb-4 rounded-2xl border bg-white p-4 shadow-sm ${expanded ? "border-singha-600" : "border-line"}`}
-      onPress={() => router.push(`/booking/${booking.booking_id}`)}
+      className={`mb-4 rounded-2xl border bg-white p-4 shadow-sm ${onPress ? "active:opacity-80" : ""} ${expanded ? "border-singha-600" : "border-line"}`}
+      disabled={!onPress}
+      onPress={onPress}
     >
       <View className="flex-row items-start">
         <View className="flex-1">
@@ -31,7 +37,6 @@ export function BookingCard({ booking, expanded = false }: { booking: Booking; e
             <Text className="ml-2 text-sm text-muted">{payment?.payment_method === "pay_on_arrival" ? t("common.payOnArrival") : t("common.paymentProof")}</Text>
           </View>
         </View>
-        <ChevronRight size={24} color={colors.ink} />
       </View>
 
       <View className="mt-4 flex-row flex-wrap gap-4">

@@ -1,5 +1,4 @@
 export const initialDefaultSlotPrice = 1500;
-export const initialDefaultCurrency = "LKR";
-export const supportedCurrencies = ["LKR", "USD"] as const;
+export const defaultCurrency = "LKR";
 
-export type CurrencyCode = (typeof supportedCurrencies)[number];
+export type CurrencyCode = typeof defaultCurrency;

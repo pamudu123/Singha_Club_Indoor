@@ -301,7 +301,6 @@
   "settings.userDetails.email": "Email",
   "settings.bookingSettings": "Booking Settings",
   "settings.bookingSettings.subtitle": "Configure default booking preferences.",
-  "settings.bookingSettings.defaultCurrency": "Default Currency",
   "settings.bookingSettings.maxSlots": "Max Slots Per Booking",
   "settings.language": "Language",
   "settings.language.subtitle": "Select your preferred language.",

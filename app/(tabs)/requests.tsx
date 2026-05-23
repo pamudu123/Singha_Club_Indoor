@@ -1,4 +1,5 @@
 import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
@@ -107,6 +108,7 @@ export default function RequestsScreen() {
       }),
     [bookings, search]
   );
+  const recordIds = useMemo(() => filtered.map((booking) => booking.booking_id), [filtered]);
   const counts = useMemo(
     () => ({
       all: bookings.length,
@@ -185,7 +187,21 @@ export default function RequestsScreen() {
       {error || tracksError ? <ErrorState message={error ?? tracksError ?? ""} /> : null}
       {!loading && filtered.length === 0 ? <EmptyState title={t("requests.emptyTitle")} message={t("requests.emptyMessage")} /> : null}
       {filtered.map((booking, index) => (
-        <BookingCard key={booking.booking_id} booking={booking} expanded={index === 0 && filter !== "accepted"} />
+        <BookingCard
+          key={booking.booking_id}
+          booking={booking}
+          expanded={index === 0 && filter !== "accepted"}
+          onPress={() =>
+            router.push({
+              pathname: "/booking/[id]",
+              params: {
+                id: booking.booking_id,
+                recordIds: recordIds.join(","),
+                recordIndex: String(index)
+              }
+            })
+          }
+        />
       ))}
       {nextCursor ? (
         <AppButton

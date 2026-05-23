@@ -53,6 +53,22 @@ const MONTH_KEYS = [
 
 type TimeSlotRank = { label: string; count: number };
 
+function trimEmptyChartEdges(labels: string[], dayValues: number[], nightValues: number[]) {
+  const firstDataIndex = dayValues.findIndex((value, index) => value + (nightValues[index] ?? 0) > 0);
+  if (firstDataIndex === -1) return { labels, dayValues, nightValues };
+
+  let lastDataIndex = dayValues.length - 1;
+  while (lastDataIndex > firstDataIndex && dayValues[lastDataIndex] + (nightValues[lastDataIndex] ?? 0) === 0) {
+    lastDataIndex -= 1;
+  }
+
+  return {
+    labels: labels.slice(firstDataIndex, lastDataIndex + 1),
+    dayValues: dayValues.slice(firstDataIndex, lastDataIndex + 1),
+    nightValues: nightValues.slice(firstDataIndex, lastDataIndex + 1)
+  };
+}
+
 function getMockLabels(locale: string) {
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(2026, 4, 17 + index);
@@ -371,9 +387,16 @@ export default function ReportsScreen() {
           next.setDate(cur.getDate() + 1);
           cur = next;
         }
-        setLabels(dateLabels);
-        setBarsDay(dDay);
-        setBarsNight(dNight);
+        if (range === "month" || range === "pick_month") {
+          const compactChart = trimEmptyChartEdges(dateLabels, dDay, dNight);
+          setLabels(compactChart.labels);
+          setBarsDay(compactChart.dayValues);
+          setBarsNight(compactChart.nightValues);
+        } else {
+          setLabels(dateLabels);
+          setBarsDay(dDay);
+          setBarsNight(dNight);
+        }
       } else {
         // Single-day view (today)
         let dayRev = 0;
@@ -578,7 +601,7 @@ export default function ReportsScreen() {
             </Text>
           </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={`h-64 flex-row items-end gap-4 px-1 ${isDaily ? "" : "justify-center flex-1"}`}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={`h-56 flex-row items-end gap-5 px-1 ${isDaily ? "" : "justify-center flex-1"}`}>
             {currentBarsDay.map((dayVal, index) => {
               const nightVal = currentBarsNight[index] ?? 0;
               const total = dayVal + nightVal;
@@ -587,19 +610,19 @@ export default function ReportsScreen() {
                 total > 0 ? (dayVal / total) * 100 : 0;
               const nightHeightPercentage =
                 total > 0 ? (nightVal / total) * 100 : 0;
-              const barHeight = 50 + (total / maxTotal) * 130;
+              const barHeight = total > 0 ? 24 + (total / maxTotal) * 132 : 2;
 
               return (
                 <View
                   key={`bar-${index}`}
-                  className="items-center"
+                  className="w-11 items-center"
                   accessibilityLabel={t("reports.accessTotal", { label: currentLabels[index], total: Math.round(total / 1000), day: Math.round(dayVal / 1000), night: Math.round(nightVal / 1000) })}
                 >
-                  <Text className="mb-2 text-xs text-ink">
-                    LKR {Math.round(total / 1000)}K
+                  <Text className="mb-2 h-4 text-[10px] text-ink">
+                    {total > 0 ? `LKR ${Math.round(total / 1000)}K` : ""}
                   </Text>
                   <View
-                    className="w-8 rounded-t-xl overflow-hidden justify-end"
+                    className="w-7 rounded-t-xl overflow-hidden justify-end"
                     style={{ height: barHeight }}
                   >
                     <View
@@ -611,7 +634,7 @@ export default function ReportsScreen() {
                       style={{ height: `${dayHeightPercentage}%` }}
                     />
                   </View>
-                  <Text className="mt-2 text-xs text-muted">
+                  <Text className="mt-2 text-[10px] text-muted" numberOfLines={1}>
                     {currentLabels[index]}
                   </Text>
                 </View>
@@ -735,7 +758,7 @@ export default function ReportsScreen() {
             </Text>
           </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="h-64 flex-row items-end gap-4 px-1">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="h-56 flex-row items-end gap-5 px-1">
             {timeBreakdownBars.map((value, index) => {
               const label = timeBreakdownLabels[index];
               const isDay =
@@ -745,17 +768,17 @@ export default function ReportsScreen() {
               return (
                 <View
                   key={`time-${index}`}
-                  className="items-center"
+                  className="w-11 items-center"
                   accessibilityLabel={t("reports.accessRevenue", { label, total: Math.round(value / 1000) })}
                 >
-                  <Text className="mb-2 text-xs text-ink">
-                    LKR {Math.round(value / 1000)}K
+                  <Text className="mb-2 h-4 text-[10px] text-ink">
+                    {value > 0 ? `LKR ${Math.round(value / 1000)}K` : ""}
                   </Text>
                   <View
-                    className={`w-8 rounded-t-xl ${isDay ? "bg-green-500" : "bg-gray-400"}`}
-                    style={{ height: 50 + (value / timeMax) * 130 }}
+                    className={`w-7 rounded-t-xl ${isDay ? "bg-green-500" : "bg-gray-400"}`}
+                    style={{ height: value > 0 ? 24 + (value / timeMax) * 132 : 2 }}
                   />
-                  <Text className="mt-2 text-xs text-muted">{label}</Text>
+                  <Text className="mt-2 text-[10px] text-muted" numberOfLines={1}>{label}</Text>
                 </View>
               );
             })}

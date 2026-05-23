@@ -1,10 +1,9 @@
-import { initialDefaultCurrency, initialDefaultSlotPrice, type CurrencyCode } from "@/constants/pricing";
+import { defaultCurrency, initialDefaultSlotPrice, type CurrencyCode } from "@/constants/pricing";
 import { configuredTracks } from "@/constants/tracks";
 import type { DayType, ServiceResult, SlotPrice } from "@/types/database";
 import { getWritableSupabase, requireSupabase, toServiceError } from "./supabase";
 
 let defaultSlotPrice = initialDefaultSlotPrice;
-let defaultCurrency: CurrencyCode = initialDefaultCurrency;
 
 export function getDefaultSlotPrice() {
   return defaultSlotPrice;
@@ -16,10 +15,6 @@ export function updateDefaultSlotPrice(price: number) {
 
 export function getDefaultCurrency() {
   return defaultCurrency;
-}
-
-export function updateDefaultCurrency(currency: CurrencyCode) {
-  defaultCurrency = currency;
 }
 
 function decorateSlotPrice(slotPrice: SlotPrice): SlotPrice {

@@ -184,6 +184,7 @@ export default function PricingScreen() {
               {defaultPriceUnlocked ? (
                 <TextInput
                   className="h-12 rounded-xl border border-line bg-surface px-3 text-xl font-bold text-ink"
+                  style={{ paddingTop: 0, paddingBottom: 0, lineHeight: 28, includeFontPadding: false }}
                   value={defaultPriceInput}
                   onChangeText={setDefaultPriceInput}
                   keyboardType="numeric"
