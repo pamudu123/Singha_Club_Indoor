@@ -28,7 +28,8 @@ export async function getCurrentSession() {
 export async function login(username: string): Promise<ServiceResult<AdminUser>> {
   if (hasSupabaseConfig) {
     try {
-      const { data } = await requireSupabase()
+      const client = requireSupabase();
+      const { data } = await client
         .from("admin_users")
         .select("*")
         .or(`email.eq.${username},full_name.ilike.%${username}%`)
@@ -38,7 +39,7 @@ export async function login(username: string): Promise<ServiceResult<AdminUser>>
 
       if (data) return { data: data as AdminUser, error: null };
     } catch {
-      // Passwordless admin mode should stay usable even while RLS/auth policies are being finalized.
+      // Keep going to fallback during local finalization
     }
   }
 
@@ -68,10 +69,13 @@ export async function signup(input: {
 
   if (hasSupabaseConfig) {
     try {
-      const { data, error } = await requireSupabase()
+      const client = requireSupabase();
+      const adminId = createAdminId();
+
+      const { data, error } = await client
         .from("admin_users")
         .insert({
-          id: createAdminId(),
+          id: adminId,
           full_name: fullName,
           email,
           whatsapp_number: whatsappNumber,

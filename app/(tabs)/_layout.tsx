@@ -1,10 +1,20 @@
-import { Tabs } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import { BarChart3, CalendarDays, Home, Settings, Users } from "lucide-react-native";
 import { colors } from "@/constants/theme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function TabsLayout() {
   const { t } = useLanguage();
+  const { admin, loading } = useAuth();
+
+  if (loading) {
+    return null; // Silent recovery check
+  }
+
+  if (!admin) {
+    return <Redirect href="/(auth)/login" />;
+  }
 
   return (
     <Tabs

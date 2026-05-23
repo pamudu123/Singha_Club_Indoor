@@ -7,15 +7,16 @@ import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
 import { localAdminId } from "@/constants/admin";
 import { supportedCurrencies, type CurrencyCode } from "@/constants/pricing";
+import { languageLabels } from "@/constants/translations";
 import { useAuth } from "@/hooks/useAuth";
-import { useLanguage, type Language } from "@/hooks/useLanguage";
+import { useLanguage } from "@/hooks/useLanguage";
 import { logout, updateAdminProfile } from "@/lib/authService";
 import { getDefaultCurrency, updateDefaultCurrency } from "@/lib/pricingService";
 import { formatWhatsapp } from "@/lib/validation";
 
 export default function SettingsScreen() {
   const { admin, setAdmin } = useAuth();
-  const { lang, setLang, t } = useLanguage();
+  const { lang, setLang, t, tv } = useLanguage();
   const [notifications, setNotifications] = useState({
     booking: true,
     accepted: true,
@@ -29,7 +30,6 @@ export default function SettingsScreen() {
   const [whatsapp, setWhatsapp] = useState(admin?.whatsapp_number ?? "+94 77 123 4567");
   const [email, setEmail] = useState(admin?.email ?? "admin@singha.club");
   const [currency, setCurrency] = useState<CurrencyCode>(getDefaultCurrency());
-  const [slotDuration, setSlotDuration] = useState("30 Min");
   const [maxSlots, setMaxSlots] = useState(10);
 
   async function onLogout() {
@@ -49,7 +49,7 @@ export default function SettingsScreen() {
       setIsSaving(false);
 
       if (res.error) {
-        Alert.alert("Error", res.error);
+        Alert.alert(t("settings.error"), tv(res.error) ?? res.error);
         return;
       } else if (res.data) {
         setAdmin(res.data);
@@ -71,9 +71,9 @@ export default function SettingsScreen() {
         <SegmentedToggleRow 
           icon={Globe} 
           label={t("settings.language")} 
-          options={["English", "සිංහල"]} 
-          value={lang === "si" ? "සිංහල" : "English"} 
-          onChange={(val) => setLang(val === "සිංහල" ? "si" : "en")} 
+          options={[languageLabels.en, languageLabels.si]} 
+          value={languageLabels[lang]} 
+          onChange={(val) => setLang(val === languageLabels.si ? "si" : "en")} 
         />
       </SettingsSection>
 
@@ -112,7 +112,6 @@ export default function SettingsScreen() {
             updateDefaultCurrency(nextCurrency);
           }}
         />
-        <SegmentedToggleRow icon={CheckCircle2} label={t("settings.bookingSettings.slotDuration")} options={["30 Min", "60 Min"]} value={slotDuration} onChange={setSlotDuration} />
         <StepperRow icon={CheckCircle2} label={t("settings.bookingSettings.maxSlots")} value={maxSlots} onDecrement={() => setMaxSlots(Math.max(1, maxSlots - 1))} onIncrement={() => setMaxSlots(Math.min(50, maxSlots + 1))} />
       </SettingsSection>
 

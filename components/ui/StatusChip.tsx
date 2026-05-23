@@ -1,4 +1,5 @@
 import { Text, View } from "react-native";
+import { useLanguage } from "@/hooks/useLanguage";
 import type { BookingStatus } from "@/types/database";
 
 const statusStyles: Record<BookingStatus | "blocked" | "available", string> = {
@@ -11,11 +12,11 @@ const statusStyles: Record<BookingStatus | "blocked" | "available", string> = {
 };
 
 export function StatusChip({ status }: { status: BookingStatus | "blocked" | "available" }) {
+  const { t } = useLanguage();
   const [bg, border, text] = statusStyles[status].split(" ");
-  const label = status.replace("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   return (
     <View className={`rounded-lg border px-3 py-1 ${bg} ${border}`}>
-      <Text className={`text-xs font-semibold ${text}`}>{label}</Text>
+      <Text className={`text-xs font-semibold ${text}`}>{t(`status.${status}`)}</Text>
     </View>
   );
 }

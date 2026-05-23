@@ -1,6 +1,6 @@
 import { configuredTrackIds, configuredTracks } from "@/constants/tracks";
 import type { BlockedSlot, BookingSlot, ServiceResult, Track } from "@/types/database";
-import { getWritableSupabase, requireSupabase, supabaseAdmin, toServiceError } from "./supabase";
+import { getWritableSupabase, requireSupabase, toServiceError } from "./supabase";
 
 function decorateBlockedSlot(slot: BlockedSlot): BlockedSlot {
   return {
@@ -11,7 +11,7 @@ function decorateBlockedSlot(slot: BlockedSlot): BlockedSlot {
 
 export async function listTracks(): Promise<ServiceResult<Track[]>> {
   try {
-    const client = supabaseAdmin ?? requireSupabase();
+    const client = requireSupabase();
     const { data, error } = await client
       .from("tracks")
       .select("*")
@@ -30,7 +30,7 @@ export async function getDaySchedule(input: {
   trackId: string;
 }): Promise<ServiceResult<{ bookingSlots: BookingSlot[]; blockedSlots: BlockedSlot[] }>> {
   try {
-    const client = supabaseAdmin ?? requireSupabase();
+    const client = requireSupabase();
     const [bookingSlots, blockedSlots] = await Promise.all([
       client
         .from("booking_slots")
@@ -86,7 +86,7 @@ export async function getDaySchedule(input: {
 
 export async function listBlockedSlots(input?: { trackId?: string; slotDate?: string }): Promise<ServiceResult<BlockedSlot[]>> {
   try {
-    const client = supabaseAdmin ?? requireSupabase();
+    const client = requireSupabase();
     let query = client.from("blocked_slots").select("*, tracks ( id, track_name )").order("slot_date").order("start_time");
     if (input?.trackId) query = query.eq("track_id", input.trackId);
     if (input?.slotDate) query = query.eq("slot_date", input.slotDate);

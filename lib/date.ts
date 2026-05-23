@@ -19,16 +19,16 @@ export function addDays(value: string, days: number) {
   return toISODate(date);
 }
 
-export function formatDateLabel(value: string) {
-  return new Intl.DateTimeFormat("en-LK", {
+export function formatDateLabel(value: string, locale = "en-LK") {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: "numeric"
   }).format(dateFromISO(value));
 }
 
-export function formatDay(value: string) {
-  return new Intl.DateTimeFormat("en-LK", { weekday: "long" }).format(dateFromISO(value));
+export function formatDay(value: string, locale = "en-LK") {
+  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(dateFromISO(value));
 }
 
 export function formatCurrency(amount: number, currency = "LKR") {

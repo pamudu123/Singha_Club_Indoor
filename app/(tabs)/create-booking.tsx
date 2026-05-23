@@ -14,15 +14,18 @@ import { Screen } from "@/components/ui/Screen";
 import { localAdminId } from "@/constants/admin";
 import { slotTimes } from "@/constants/booking";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useTracks } from "@/hooks/useTracks";
 import { createBooking } from "@/lib/bookingService";
 import { displayTimeToDb, formatCurrency, todayISO } from "@/lib/date";
 import { getDefaultSlotPrice } from "@/lib/pricingService";
 import { formatWhatsapp, validateBooking } from "@/lib/validation";
+import { requireSupabase } from "@/lib/supabase";
 import type { PaymentMethod } from "@/types/database";
 
 export default function CreateBookingScreen() {
   const { admin } = useAuth();
+  const { t, tv } = useLanguage();
   const scrollRef = useRef<ScrollView>(null);
   const [name, setName] = useState("");
   const [nic, setNic] = useState("");
@@ -34,6 +37,7 @@ export default function CreateBookingScreen() {
   const [remarks, setRemarks] = useState("");
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [proofName, setProofName] = useState<string | null>(null);
+  const [proofAsset, setProofAsset] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayISO());
   const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
@@ -73,33 +77,62 @@ export default function CreateBookingScreen() {
     setRemarks("");
     setSelectedSlots([]);
     setProofName(null);
+    setProofAsset(null);
     setBookingDate(todayISO());
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }
 
   async function pickProof() {
     const result = await DocumentPicker.getDocumentAsync({ type: ["image/*", "application/pdf"] });
-    if (!result.canceled) {
-      setProofName(result.assets[0]?.name ?? "Payment proof");
+    if (!result.canceled && result.assets && result.assets[0]) {
+      setProofName(result.assets[0].name ?? t("create.paymentProofDefault"));
+      setProofAsset(result.assets[0]);
     }
   }
 
   async function submit(createAsAccepted: boolean) {
     const validation = validateBooking({ name, nic, whatsapp, bookingDate, selectedSlots, people });
     if (validation) {
-      Alert.alert("Check booking details", validation);
+      Alert.alert(t("create.checkDetails"), tv(validation) ?? validation);
       return;
     }
     if (!track) {
-      Alert.alert("Track required", "Add active tracks in Supabase before creating a booking.");
+      Alert.alert(t("create.trackRequired"), t("create.trackRequiredMessage"));
       return;
     }
     if (paymentMethod === "payment_proof" && !proofName) {
-      Alert.alert("Payment proof required", "Upload a JPG, PNG, or PDF payment proof, or choose Pay on Arrival.");
+      Alert.alert(t("create.proofRequired"), t("create.proofRequiredMessage"));
       return;
     }
 
     setLoading(true);
+
+    let storagePath = null;
+    if (paymentMethod === "payment_proof" && proofAsset) {
+      try {
+        const fileUri = proofAsset.uri;
+        const fileExt = proofAsset.name.split(".").pop() || "jpg";
+        const fileName = `${Date.now()}_proof.${fileExt}`;
+
+        const response = await fetch(fileUri);
+        const blob = await response.blob();
+
+        const { data: storageData, error: storageError } = await requireSupabase().storage
+          .from("payment-proofs")
+          .upload(fileName, blob, {
+            contentType: proofAsset.mimeType || "image/jpeg",
+            upsert: true
+          });
+
+        if (storageError) throw storageError;
+        storagePath = storageData?.path || fileName;
+      } catch (uploadError: any) {
+        setLoading(false);
+        Alert.alert(t("create.uploadFailed"), t("create.uploadFailedMessage", { message: uploadError.message }));
+        return;
+      }
+    }
+
     const result = await createBooking({
       customer: { nic, full_name: name, email, whatsapp_number: whatsapp },
       bookingDate,
@@ -107,7 +140,7 @@ export default function CreateBookingScreen() {
       slots: slotRows,
       numberOfPeople: people,
       paymentMethod,
-      paymentProofPath: proofName,
+      paymentProofPath: storagePath,
       remarks,
       createAsAccepted,
       adminId: admin?.id ?? localAdminId
@@ -115,39 +148,39 @@ export default function CreateBookingScreen() {
     setLoading(false);
 
     if (result.error) {
-      Alert.alert("Booking failed", result.error);
+      Alert.alert(t("create.bookingFailed"), result.error);
       return;
     }
 
-    Alert.alert("Booking saved", "The booking request was created successfully.", [{ text: "OK", onPress: () => router.replace("/(tabs)") }]);
+    Alert.alert(t("create.bookingSaved"), t("create.bookingSavedMessage"), [{ text: t("common.ok"), onPress: () => router.replace("/(tabs)") }]);
   }
 
   return (
     <Screen ref={scrollRef}>
-      <AppHeader title="Create Booking" subtitle="Indoor Cricket Booking System" />
-      <Text className="mb-4 text-2xl font-bold text-ink">Booking Details</Text>
+      <AppHeader title={t("create.title")} subtitle={t("app.subtitle")} showBack />
+      <Text className="mb-4 text-2xl font-bold text-ink">{t("create.details")}</Text>
 
       <View className="gap-4">
-        <FormField label="Customer Name *" icon={User} value={name} onChangeText={setName} placeholder="Customer full name" />
-        <FormField label="NIC *" icon={CreditCard} value={nic} onChangeText={setNic} placeholder="990123456V" autoCapitalize="characters" />
-        <FormField label="WhatsApp Number *" icon={Phone} value={whatsapp} onChangeText={(text) => setWhatsapp(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
-        <FormField label="Email" icon={Mail} value={email} onChangeText={setEmail} placeholder="customer@email.com" keyboardType="email-address" autoCapitalize="none" />
+        <FormField label={t("create.customerName")} icon={User} value={name} onChangeText={setName} placeholder={t("create.customerNamePlaceholder")} />
+        <FormField label={t("create.nic")} icon={CreditCard} value={nic} onChangeText={setNic} placeholder="990123456V" autoCapitalize="characters" />
+        <FormField label={t("create.whatsapp")} icon={Phone} value={whatsapp} onChangeText={(text) => setWhatsapp(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
+        <FormField label={t("create.email")} icon={Mail} value={email} onChangeText={setEmail} placeholder={t("create.emailPlaceholder")} keyboardType="email-address" autoCapitalize="none" />
         <SelectField
-          label="Track *"
+          label={t("create.track")}
           value={track}
           onChange={setTrack}
           options={trackOptions}
         />
-        {tracksLoading ? <Text className="text-muted">Loading tracks...</Text> : null}
+        {tracksLoading ? <Text className="text-muted">{t("create.loadingTracks")}</Text> : null}
         {tracksError ? <Text className="text-red-500">{tracksError}</Text> : null}
-        <DatePickerField label="Booking Date *" value={bookingDate} onChange={setBookingDate} />
+        <DatePickerField label={t("create.bookingDate")} value={bookingDate} onChange={setBookingDate} />
       </View>
 
       <Card className="mt-4">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
             <Users size={22} color="#667085" />
-            <Text className="ml-3 text-base text-muted">Number of People *</Text>
+            <Text className="ml-3 text-base text-muted">{t("create.people")}</Text>
           </View>
           <View className="flex-row items-center gap-5">
             <Pressable className="h-10 w-10 items-center justify-center rounded-full border border-line" onPress={() => setPeople(Math.max(1, people - 1))}>
@@ -161,39 +194,39 @@ export default function CreateBookingScreen() {
         </View>
       </Card>
 
-      <Text className="mb-3 mt-6 text-base font-semibold text-ink">Select Time Slots * (30 minutes each)</Text>
+      <Text className="mb-3 mt-6 text-base font-semibold text-ink">{t("create.selectSlots")}</Text>
       <SlotPicker slots={slotTimes.slice(12, -1)} selected={selectedSlots} onToggle={toggleSlot} />
 
-      <FormField className="mt-5" label="Remarks" icon={MessageSquare} value={remarks} onChangeText={setRemarks} placeholder="Special requests or internal note" multiline numberOfLines={3} />
+      <FormField className="mt-5" label={t("create.remarks")} icon={MessageSquare} value={remarks} onChangeText={setRemarks} placeholder={t("create.remarksPlaceholder")} multiline numberOfLines={3} />
 
-      <Text className="mb-3 mt-6 text-2xl font-bold text-ink">Payment</Text>
+      <Text className="mb-3 mt-6 text-2xl font-bold text-ink">{t("common.payment")}</Text>
       <View className="flex-row gap-3">
-        <PaymentOption title="Payment Proof Upload" selected={paymentMethod === "payment_proof"} onPress={() => setPaymentMethod("payment_proof")} />
-        <PaymentOption title="Pay on Arrival" selected={paymentMethod === "pay_on_arrival"} onPress={() => setPaymentMethod("pay_on_arrival")} />
+        <PaymentOption title={t("create.paymentProofUpload")} selected={paymentMethod === "payment_proof"} onPress={() => setPaymentMethod("payment_proof")} />
+        <PaymentOption title={t("create.payOnArrival")} selected={paymentMethod === "pay_on_arrival"} onPress={() => setPaymentMethod("pay_on_arrival")} />
       </View>
       {paymentMethod === "payment_proof" ? (
         <Pressable className="mt-3 flex-row items-center rounded-xl border border-line bg-white p-4" onPress={pickProof}>
           <FileUp size={28} color="#087d24" />
           <View className="ml-4 flex-1">
-            <Text className="font-semibold text-ink">{proofName ?? "Upload payment proof"}</Text>
-            <Text className="mt-1 text-muted">JPG, PNG, or PDF</Text>
+            <Text className="font-semibold text-ink">{proofName ?? t("create.uploadProof")}</Text>
+            <Text className="mt-1 text-muted">{t("create.fileTypes")}</Text>
           </View>
         </Pressable>
       ) : null}
 
       <Card className="mt-5">
-        <Text className="text-xl font-bold text-ink">Booking Summary</Text>
+        <Text className="text-xl font-bold text-ink">{t("create.summary")}</Text>
         <View className="mt-4 flex-row justify-between">
-          <Summary label="Total Duration" value={`${selectedSlots.length * 30} min`} />
-          <Summary label="Slots" value={String(selectedSlots.length)} />
-          <Summary label="Total Price" value={formatCurrency(totalPrice)} />
+          <Summary label={t("create.totalDuration")} value={`${selectedSlots.length * 30} min`} />
+          <Summary label={t("common.slots")} value={String(selectedSlots.length)} />
+          <Summary label={t("create.totalPrice")} value={formatCurrency(totalPrice)} />
         </View>
       </Card>
 
       <View className="mt-5 gap-3">
-        <AppButton title="Create Booking" icon={CalendarDays} loading={loading} onPress={() => submit(false)} />
-        <AppButton title="Create as Accepted" variant="secondary" loading={loading} onPress={() => submit(true)} />
-        <AppButton title="Cancel" icon={RotateCcw} variant="ghost" disabled={loading} onPress={cancelBooking} />
+        <AppButton title={t("create.title")} icon={CalendarDays} loading={loading} onPress={() => submit(false)} />
+        <AppButton title={t("create.createAsAccepted")} variant="secondary" loading={loading} onPress={() => submit(true)} />
+        <AppButton title={t("common.cancel")} icon={RotateCcw} variant="ghost" disabled={loading} onPress={cancelBooking} />
       </View>
     </Screen>
   );

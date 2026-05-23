@@ -1,12 +1,14 @@
 import { ActivityIndicator, Text, View } from "react-native";
 import { AlertCircle, Inbox } from "lucide-react-native";
 import { colors } from "@/constants/theme";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export function LoadingState({ label = "Loading..." }: { label?: string }) {
+  const { t } = useLanguage();
   return (
     <View className="items-center justify-center py-12">
       <ActivityIndicator color={colors.green} />
-      <Text className="mt-3 text-muted">{label}</Text>
+      <Text className="mt-3 text-muted">{label === "Loading..." ? t("common.loading") : label}</Text>
     </View>
   );
 }

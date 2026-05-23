@@ -11,6 +11,7 @@ import { SelectField } from "@/components/ui/SelectField";
 import { ErrorState, LoadingState } from "@/components/ui/StateView";
 import { Screen } from "@/components/ui/Screen";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useTracks } from "@/hooks/useTracks";
 import { displayTime, displayTimeToDb, formatCurrency, formatDateLabel, todayISO } from "@/lib/date";
 import { createSlotPrice, getDefaultCurrency, getDefaultSlotPrice, listSlotPrices, updateDefaultSlotPrice, updateSlotPrice } from "@/lib/pricingService";
@@ -21,14 +22,15 @@ type ActiveValue = "active" | "inactive";
 type EffectiveToMode = "none" | "date";
 
 const timeOptions = slotTimes.map((time) => ({ label: time, value: displayTimeToDb(time) }));
-const dayTypeOptions: { label: string; value: DayType }[] = [
-  { label: "All days", value: "all_days" },
-  { label: "Weekday", value: "weekday" },
-  { label: "Weekend", value: "weekend" },
-  { label: "Specific day", value: "specific_day" }
-];
+const dayTypeKeys: Record<DayType, string> = {
+  all_days: "pricing.allDays",
+  weekday: "pricing.weekday",
+  weekend: "pricing.weekend",
+  specific_day: "pricing.specificDay"
+};
 
 export default function PricingScreen() {
+  const { locale, t } = useLanguage();
   const [track, setTrack] = useState<string>("");
   const [editing, setEditing] = useState<SlotPrice | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -95,7 +97,7 @@ export default function PricingScreen() {
   function saveDefaultPrice() {
     const numericPrice = Number(defaultPriceInput);
     if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
-      Alert.alert("Invalid default price", "Enter a default price greater than 0.");
+      Alert.alert(t("pricing.invalidDefault"), t("pricing.invalidDefaultMessage"));
       return;
     }
 
@@ -107,23 +109,23 @@ export default function PricingScreen() {
   async function savePriceRule() {
     const numericPrice = Number(price);
     if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
-      Alert.alert("Invalid price", "Enter a price greater than 0.");
+      Alert.alert(t("pricing.invalidPrice"), t("pricing.invalidPriceMessage"));
       return;
     }
     if (startTime >= endTime) {
-      Alert.alert("Invalid time range", "End time must be after start time.");
+      Alert.alert(t("pricing.invalidTime"), t("pricing.invalidTimeMessage"));
       return;
     }
     if (effectiveFrom < todayISO()) {
-      Alert.alert("Invalid effective date", "Effective From cannot be before today.");
+      Alert.alert(t("pricing.invalidDate"), t("pricing.effectiveFromPast"));
       return;
     }
     if (effectiveToMode === "date" && effectiveTo < effectiveFrom) {
-      Alert.alert("Invalid effective date", "Effective To must be on or after Effective From.");
+      Alert.alert(t("pricing.invalidDate"), t("pricing.effectiveToBeforeFrom"));
       return;
     }
     if (!track) {
-      Alert.alert("Track required", "Add active tracks in Supabase before creating price rules.");
+      Alert.alert(t("create.trackRequired"), t("pricing.trackRequiredMessage"));
       return;
     }
 
@@ -156,7 +158,7 @@ export default function PricingScreen() {
     setSaving(false);
 
     if (result.error) {
-      Alert.alert("Could not save price rule", result.error);
+      Alert.alert(t("pricing.saveFailed"), result.error);
       return;
     }
     setModalOpen(false);
@@ -165,19 +167,19 @@ export default function PricingScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Pricing" />
+      <AppHeader title={t("pricing.title")} showBack />
       <SegmentedFilter
         value={track}
         onChange={setTrack}
         options={trackOptions}
       />
-      {tracksLoading ? <LoadingState label="Loading tracks..." /> : null}
+      {tracksLoading ? <LoadingState label={t("create.loadingTracks")} /> : null}
       {tracksError ? <ErrorState message={tracksError} /> : null}
 
       <Card className="mt-5">
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-sm text-muted">Default price per slot</Text>
+            <Text className="text-sm text-muted">{t("pricing.defaultPrice")}</Text>
             <View className="mt-2 h-12 justify-center">
               {defaultPriceUnlocked ? (
                 <TextInput
@@ -200,10 +202,10 @@ export default function PricingScreen() {
       </Card>
 
       <View className="my-5 flex-row items-center justify-between">
-        <Text className="flex-1 text-base text-ink">Manage slot prices by track, time, and effective date.</Text>
-        <AppButton title="Add Price Rule" icon={PlusCircle} className="ml-3" onPress={openAdd} />
+        <Text className="flex-1 text-base text-ink">{t("pricing.manage")}</Text>
+        <AppButton title={t("common.addPriceRule")} icon={PlusCircle} className="ml-3" onPress={openAdd} />
       </View>
-      {loading ? <LoadingState label="Loading prices..." /> : null}
+      {loading ? <LoadingState label={t("pricing.loading")} /> : null}
       {error ? <ErrorState message={error} /> : null}
       {data?.map((price) => (
         <Card key={price.id} className="mb-4">
@@ -212,34 +214,34 @@ export default function PricingScreen() {
               <Text className="text-xl font-bold text-ink">
                 {displayTime(price.start_time)} - {displayTime(price.end_time)}
               </Text>
-              <Text className="mt-1 text-muted">{price.day_type.replace("_", " ")}</Text>
+              <Text className="mt-1 text-muted">{t(dayTypeKeys[price.day_type])}</Text>
             </View>
             <View className="items-end">
-              <Text className="text-sm text-muted">Price</Text>
+              <Text className="text-sm text-muted">{t("common.price")}</Text>
               <Text className="text-2xl font-bold text-ink">{formatCurrency(price.price, price.currency)}</Text>
-              <Text className={`mt-1 font-semibold ${price.is_active ? "text-singha-700" : "text-muted"}`}>{price.is_active ? "Active" : "Inactive"}</Text>
+              <Text className={`mt-1 font-semibold ${price.is_active ? "text-singha-700" : "text-muted"}`}>{price.is_active ? t("common.active") : t("common.inactive")}</Text>
             </View>
           </View>
           <View className="mt-4 flex-row justify-between border-t border-line pt-4">
-            <Text className="text-muted">From {formatDateLabel(price.effective_from)}</Text>
-            <Text className="text-muted">{price.effective_to ? `To ${formatDateLabel(price.effective_to)}` : "No end date"}</Text>
+            <Text className="text-muted">{t("common.from")} {formatDateLabel(price.effective_from, locale)}</Text>
+            <Text className="text-muted">{price.effective_to ? t("pricing.to", { date: formatDateLabel(price.effective_to, locale) }) : t("pricing.noEndDate")}</Text>
           </View>
-          <AppButton className="mt-4" title="Edit Rule" icon={Pencil} variant="secondary" onPress={() => openEdit(price)} />
+          <AppButton className="mt-4" title={t("common.editRule")} icon={Pencil} variant="secondary" onPress={() => openEdit(price)} />
         </Card>
       ))}
-      <Text className="rounded-xl bg-green-50 p-4 text-singha-700">Note: Existing bookings retain their original slot price.</Text>
+      <Text className="rounded-xl bg-green-50 p-4 text-singha-700">{t("pricing.note")}</Text>
 
       <Modal transparent visible={modalOpen} animationType="fade" onRequestClose={() => setModalOpen(false)}>
         <View className="flex-1 justify-end bg-black/30 px-4 pb-6">
           <Pressable className="absolute inset-0" onPress={() => setModalOpen(false)} />
           <View className="max-h-[88%] rounded-2xl border border-line bg-white p-4 shadow-lg">
-            <Text className="mb-4 text-xl font-bold text-ink">{editing ? "Edit Price Rule" : "Add Price Rule"}</Text>
+            <Text className="mb-4 text-xl font-bold text-ink">{editing ? t("common.editRule") : t("common.addPriceRule")}</Text>
             <View className="gap-4">
-              <SelectField label="Start Time" value={startTime} onChange={setStartTime} options={timeOptions} />
-              <SelectField label="End Time" value={endTime} onChange={setEndTime} options={timeOptions} />
-              <SelectField label="Day Type" value={dayType} onChange={setDayType} options={dayTypeOptions} />
-              <FormField label="Price" value={price} onChangeText={setPrice} keyboardType="numeric" placeholder={String(defaultPrice)} />
-              <DatePickerField label="Effective From" value={effectiveFrom} onChange={setEffectiveFrom} minDate={todayISO()} />
+              <SelectField label={t("common.startTime")} value={startTime} onChange={setStartTime} options={timeOptions} />
+              <SelectField label={t("common.endTime")} value={endTime} onChange={setEndTime} options={timeOptions} />
+              <SelectField label={t("pricing.dayType")} value={dayType} onChange={setDayType} options={(Object.keys(dayTypeKeys) as DayType[]).map((value) => ({ label: t(dayTypeKeys[value]), value }))} />
+              <FormField label={t("common.price")} value={price} onChangeText={setPrice} keyboardType="numeric" placeholder={String(defaultPrice)} />
+              <DatePickerField label={t("pricing.effectiveFrom")} value={effectiveFrom} onChange={setEffectiveFrom} minDate={todayISO()} />
               <SegmentedFilter
                 value={effectiveToMode}
                 onChange={(value) => {
@@ -247,23 +249,23 @@ export default function PricingScreen() {
                   if (value === "date" && !effectiveTo) setEffectiveTo(effectiveFrom);
                 }}
                 options={[
-                  { label: "No end date", value: "none" },
-                  { label: "Set end date", value: "date" }
+                  { label: t("pricing.noEndDate"), value: "none" },
+                  { label: t("pricing.setEndDate"), value: "date" }
                 ]}
               />
-              {effectiveToMode === "date" ? <DatePickerField label="Effective To" value={effectiveTo || effectiveFrom} onChange={setEffectiveTo} minDate={effectiveFrom} /> : null}
+              {effectiveToMode === "date" ? <DatePickerField label={t("pricing.effectiveTo")} value={effectiveTo || effectiveFrom} onChange={setEffectiveTo} minDate={effectiveFrom} /> : null}
               <SegmentedFilter
                 value={active}
                 onChange={setActive}
                 options={[
-                  { label: "Active", value: "active" },
-                  { label: "Inactive", value: "inactive" }
+                  { label: t("common.active"), value: "active" },
+                  { label: t("common.inactive"), value: "inactive" }
                 ]}
               />
             </View>
             <View className="mt-5 flex-row gap-3">
-              <AppButton className="flex-1" title="Cancel" variant="ghost" onPress={() => setModalOpen(false)} />
-              <AppButton className="flex-1" title="Save" loading={saving} onPress={savePriceRule} />
+              <AppButton className="flex-1" title={t("common.cancel")} variant="ghost" onPress={() => setModalOpen(false)} />
+              <AppButton className="flex-1" title={t("common.save")} loading={saving} onPress={savePriceRule} />
             </View>
           </View>
         </View>

@@ -1,7 +1,7 @@
 import { initialDefaultCurrency, initialDefaultSlotPrice, type CurrencyCode } from "@/constants/pricing";
 import { configuredTracks } from "@/constants/tracks";
 import type { DayType, ServiceResult, SlotPrice } from "@/types/database";
-import { getWritableSupabase, requireSupabase, supabaseAdmin, toServiceError } from "./supabase";
+import { getWritableSupabase, requireSupabase, toServiceError } from "./supabase";
 
 let defaultSlotPrice = initialDefaultSlotPrice;
 let defaultCurrency: CurrencyCode = initialDefaultCurrency;
@@ -31,7 +31,7 @@ function decorateSlotPrice(slotPrice: SlotPrice): SlotPrice {
 
 export async function listSlotPrices(trackId: string): Promise<ServiceResult<SlotPrice[]>> {
   try {
-    const client = supabaseAdmin ?? requireSupabase();
+    const client = requireSupabase();
     const { data, error } = await client
       .from("slot_prices")
       .select(

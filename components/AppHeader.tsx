@@ -2,6 +2,7 @@ import { Image, Pressable, Text, View } from "react-native";
 import { ChevronLeft, Search, SlidersHorizontal } from "lucide-react-native";
 import { router } from "expo-router";
 import { colors, logo } from "@/constants/theme";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type AppHeaderProps = {
   title: string;
@@ -14,10 +15,11 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({ title, subtitle, showBack, showSearch, showFilter, onSearchPress, onFilterPress }: AppHeaderProps) {
+  const { t } = useLanguage();
   return (
     <View className="mb-5 flex-row items-center border-b border-line bg-white px-5 pb-4 pt-2">
       {showBack ? (
-        <Pressable accessibilityLabel="Go back" className="mr-3 h-11 w-11 items-center justify-center rounded-full" onPress={() => router.back()}>
+        <Pressable accessibilityLabel={t("common.back")} className="mr-3 h-11 w-11 items-center justify-center rounded-full" onPress={() => router.back()}>
           <ChevronLeft size={30} color={colors.ink} />
         </Pressable>
       ) : null}
@@ -34,12 +36,12 @@ export function AppHeader({ title, subtitle, showBack, showSearch, showFilter, o
       </View>
       <View className="flex-row items-center gap-2">
         {showSearch ? (
-          <Pressable className="h-11 w-11 items-center justify-center rounded-full bg-white" onPress={onSearchPress}>
+          <Pressable accessibilityLabel={t("common.search")} className="h-11 w-11 items-center justify-center rounded-full bg-white" onPress={onSearchPress}>
             <Search size={23} color={colors.ink} />
           </Pressable>
         ) : null}
         {showFilter ? (
-          <Pressable className="h-11 w-11 items-center justify-center rounded-full bg-white" onPress={onFilterPress}>
+          <Pressable accessibilityLabel={t("common.filter")} className="h-11 w-11 items-center justify-center rounded-full bg-white" onPress={onFilterPress}>
             <SlidersHorizontal size={23} color={colors.ink} />
           </Pressable>
         ) : null}

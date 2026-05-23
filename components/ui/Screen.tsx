@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { forwardRef } from "react";
-import { ScrollView, View, type ScrollViewProps } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, View, type ScrollViewProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type ScreenProps = ScrollViewProps & {
@@ -18,9 +18,14 @@ export const Screen = forwardRef<ScrollView, ScreenProps>(function Screen({ chil
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView edges={["top", "left", "right"]} className="flex-1 bg-white">
       <StatusBar style="dark" />
-      {content}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        {content}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 });

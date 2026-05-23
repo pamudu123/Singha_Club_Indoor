@@ -3,6 +3,7 @@ import { Check, ChevronDown } from "lucide-react-native";
 import { Modal, Pressable, Text, View } from "react-native";
 import { useState } from "react";
 import { colors } from "@/constants/theme";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type SelectOption<T extends string> = {
   label: string;
@@ -20,6 +21,7 @@ type SelectFieldProps<T extends string> = {
 };
 
 export function SelectField<T extends string>({ label, value, options, onChange, icon: Icon, error, className = "" }: SelectFieldProps<T>) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const selected = options.find((option) => option.value === value);
 
@@ -36,7 +38,7 @@ export function SelectField<T extends string>({ label, value, options, onChange,
         onPress={() => setOpen(true)}
       >
         {Icon ? <Icon size={20} color={colors.muted} /> : null}
-        <Text className={`${Icon ? "ml-3" : ""} flex-1 text-base text-ink`}>{selected?.label ?? "Select option"}</Text>
+        <Text className={`${Icon ? "ml-3" : ""} flex-1 text-base text-ink`}>{selected?.label ?? t("common.selectOption")}</Text>
         <ChevronDown size={20} color={colors.muted} />
       </Pressable>
       {error ? <Text className="mt-1 text-sm text-red-500">{error}</Text> : null}

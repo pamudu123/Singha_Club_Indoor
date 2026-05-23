@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
-export function useAsyncData<T>(loader: () => Promise<{ data: T | null; error: string | null }>, deps: unknown[] = []) {
+export function useAsyncData<T>(
+  loader: () => Promise<{ data: T | null; error: string | null }>,
+  deps: unknown[] = [],
+  skipInitial = false
+) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!skipInitial);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -14,7 +18,9 @@ export function useAsyncData<T>(loader: () => Promise<{ data: T | null; error: s
   }, deps);
 
   useEffect(() => {
-    refresh();
+    if (!skipInitial) {
+      refresh();
+    }
   }, [refresh]);
 
   return { data, error, loading, refresh };

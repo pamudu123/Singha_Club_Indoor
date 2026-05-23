@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Alert, Image, Text, View } from "react-native";
 import { logo } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/hooks/useLanguage";
 import { signup } from "@/lib/authService";
 import { formatWhatsapp, validateSignup } from "@/lib/validation";
 import { AppButton } from "@/components/ui/AppButton";
@@ -12,6 +13,7 @@ import { Screen } from "@/components/ui/Screen";
 
 export default function SignupScreen() {
   const { setAdmin } = useAuth();
+  const { t, tv } = useLanguage();
   const [fullName, setFullName] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [email, setEmail] = useState("");
@@ -20,14 +22,14 @@ export default function SignupScreen() {
 
   async function onSubmit() {
     const validation = validateSignup({ fullName, whatsappNumber, email });
-    setFormError(validation);
+    setFormError(tv(validation));
     if (validation) return;
 
     setLoading(true);
     const result = await signup({ fullName, whatsappNumber, email });
     setLoading(false);
     if (result.error || !result.data) {
-      Alert.alert("Signup failed", result.error ?? "Please try again.");
+      Alert.alert(t("auth.signupFailed"), tv(result.error) ?? result.error ?? t("auth.tryAgain"));
       return;
     }
     setAdmin(result.data);
@@ -38,21 +40,21 @@ export default function SignupScreen() {
     <Screen className="pt-8">
       <View className="items-center">
         <Image source={logo} className="h-24 w-24 rounded-2xl" resizeMode="contain" />
-        <Text className="mt-5 text-center text-3xl font-bold text-ink">Create Admin Account</Text>
-        <Text className="mt-2 text-center text-muted">Add your club profile details.</Text>
+        <Text className="mt-5 text-center text-3xl font-bold text-ink">{t("auth.createAdminAccount")}</Text>
+        <Text className="mt-2 text-center text-muted">{t("auth.profileSubtitle")}</Text>
       </View>
 
       <View className="mt-8 gap-4">
-        <FormField label="Name" icon={User} value={fullName} onChangeText={setFullName} />
-        <FormField label="WhatsApp Number" icon={Phone} value={whatsappNumber} onChangeText={(text) => setWhatsappNumber(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
-        <FormField label="Email" icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={formError} />
-        <AppButton title="Create Account" loading={loading} onPress={onSubmit} />
+        <FormField label={t("common.name")} icon={User} value={fullName} onChangeText={setFullName} />
+        <FormField label={t("settings.userDetails.whatsapp")} icon={Phone} value={whatsappNumber} onChangeText={(text) => setWhatsappNumber(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
+        <FormField label={t("common.email")} icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={formError} />
+        <AppButton title={t("common.createAccount")} loading={loading} onPress={onSubmit} />
       </View>
 
       <Text className="mt-8 text-center text-muted">
-        Already registered?{" "}
+        {t("auth.alreadyRegistered")}{" "}
         <Link href="/(auth)/login" className="font-semibold text-singha-700">
-          Login
+          {t("common.login")}
         </Link>
       </Text>
     </Screen>

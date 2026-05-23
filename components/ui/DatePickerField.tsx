@@ -2,6 +2,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
 import { colors } from "@/constants/theme";
+import { useLanguage } from "@/hooks/useLanguage";
 import { dateFromISO, formatDateLabel, toISODate, todayISO } from "@/lib/date";
 
 type DatePickerFieldProps = {
@@ -14,14 +15,23 @@ type DatePickerFieldProps = {
   className?: string;
 };
 
-const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const weekDayKeys = [
+  "date.weekdayShort.sun",
+  "date.weekdayShort.mon",
+  "date.weekdayShort.tue",
+  "date.weekdayShort.wed",
+  "date.weekdayShort.thu",
+  "date.weekdayShort.fri",
+  "date.weekdayShort.sat"
+];
 
 export function DatePickerField({ label, value, onChange, error, minDate, maxDate, className = "" }: DatePickerFieldProps) {
+  const { locale, t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(dateFromISO(value || todayISO())));
   const selectedDate = dateFromISO(value || todayISO());
 
-  const monthLabel = new Intl.DateTimeFormat("en-LK", { month: "long", year: "numeric" }).format(visibleMonth);
+  const monthLabel = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(visibleMonth);
   const days = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
 
   function moveMonth(offset: number) {
@@ -49,7 +59,7 @@ export function DatePickerField({ label, value, onChange, error, minDate, maxDat
       <Text className="mb-2 text-sm font-medium text-muted">{label}</Text>
       <Pressable className={`min-h-14 flex-row items-center rounded-xl border bg-white px-3 active:opacity-80 ${error ? "border-red-300" : "border-line"}`} onPress={() => setOpen(true)}>
         <CalendarDays size={20} color={colors.muted} />
-        <Text className="ml-3 flex-1 text-base text-ink">{formatDateLabel(value)}</Text>
+        <Text className="ml-3 flex-1 text-base text-ink">{formatDateLabel(value, locale)}</Text>
       </Pressable>
       {error ? <Text className="mt-1 text-sm text-red-500">{error}</Text> : null}
 
@@ -68,9 +78,9 @@ export function DatePickerField({ label, value, onChange, error, minDate, maxDat
             </View>
 
             <View className="flex-row">
-              {weekDays.map((day) => (
-                <Text key={day} className="h-8 flex-1 text-center text-xs font-semibold text-muted">
-                  {day}
+              {weekDayKeys.map((dayKey) => (
+                <Text key={dayKey} className="h-8 flex-1 text-center text-xs font-semibold text-muted">
+                  {t(dayKey)}
                 </Text>
               ))}
             </View>
@@ -96,10 +106,10 @@ export function DatePickerField({ label, value, onChange, error, minDate, maxDat
 
             <View className="mt-4 flex-row gap-3">
               <Pressable className="min-h-12 flex-1 items-center justify-center rounded-xl border border-line bg-white" onPress={() => setOpen(false)}>
-                <Text className="font-semibold text-ink">Cancel</Text>
+                <Text className="font-semibold text-ink">{t("common.cancel")}</Text>
               </Pressable>
               <Pressable className="min-h-12 flex-1 items-center justify-center rounded-xl border border-singha-600 bg-green-50" onPress={selectToday}>
-                <Text className="font-semibold text-singha-700">Today</Text>
+                <Text className="font-semibold text-singha-700">{t("common.today")}</Text>
               </Pressable>
             </View>
           </View>

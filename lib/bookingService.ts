@@ -1,6 +1,7 @@
 import type { Booking, BookingStatus, CreateBookingInput, ServiceResult } from "@/types/database";
 import { getDefaultCurrency } from "./pricingService";
-import { getWritableSupabase, requireSupabase, supabaseAdmin, toServiceError } from "./supabase";
+import { getWritableSupabase, requireSupabase, toServiceError } from "./supabase";
+import { todayISO } from "./date";
 
 const bookingSelect = `
   booking_id,
@@ -43,11 +44,26 @@ function makeBookingReference() {
   return `SCB-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
 }
 
-export async function listBookings(status?: BookingStatus): Promise<ServiceResult<Booking[]>> {
+export async function listBookings(filters?: {
+  status?: BookingStatus | "all";
+  dateFilter?: string;
+  selectedDate?: string;
+  onlyFutureOrToday?: boolean;
+}): Promise<ServiceResult<Booking[]>> {
   try {
-    const client = supabaseAdmin ?? requireSupabase();
+    const client = requireSupabase();
     let query = client.from("bookings").select(bookingSelect).order("created_at", { ascending: false });
-    if (status) query = query.eq("status", status);
+    
+    if (filters?.status && filters.status !== "all") {
+      query = query.eq("status", filters.status);
+    }
+    if (filters?.dateFilter === "date" && filters.selectedDate) {
+      query = query.eq("booking_date", filters.selectedDate);
+    }
+    if (filters?.onlyFutureOrToday) {
+      query = query.gte("booking_date", todayISO());
+    }
+    
     const { data, error } = await query;
     if (error) throw error;
     return { data: (data as unknown as Booking[]) ?? [], error: null };
@@ -58,7 +74,7 @@ export async function listBookings(status?: BookingStatus): Promise<ServiceResul
 
 export async function getBooking(bookingId: string): Promise<ServiceResult<Booking>> {
   try {
-    const client = supabaseAdmin ?? requireSupabase();
+    const client = requireSupabase();
     const { data, error } = await client
       .from("bookings")
       .select(bookingSelect)
@@ -128,6 +144,7 @@ export async function updateBookingStatus(input: {
 
 export async function createBooking(input: CreateBookingInput): Promise<ServiceResult<Booking>> {
   const bookingReference = makeBookingReference();
+  let createdBookingId: string | null = null;
 
   try {
     const client = getWritableSupabase();
@@ -153,6 +170,8 @@ export async function createBooking(input: CreateBookingInput): Promise<ServiceR
       .select("*")
       .single();
     if (bookingError) throw bookingError;
+    
+    createdBookingId = booking.booking_id;
 
     const { error: slotsError } = await client.from("booking_slots").insert(
       input.slots.map((slot) => ({
@@ -192,6 +211,14 @@ export async function createBooking(input: CreateBookingInput): Promise<ServiceR
 
     return { data: booking as Booking, error: null };
   } catch (error) {
+    if (createdBookingId) {
+      try {
+        const client = getWritableSupabase();
+        await client.from("bookings").delete().eq("booking_id", createdBookingId);
+      } catch (cleanupError) {
+        console.error("Failed to perform transactional rollback cleanup:", cleanupError);
+      }
+    }
     return { data: null, error: toServiceError(error) };
   }
 }
