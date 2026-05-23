@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react-native";
 import { Check, ChevronDown } from "lucide-react-native";
-import { Modal, Pressable, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useState } from "react";
 import { colors } from "@/constants/theme";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -48,15 +48,17 @@ export function SelectField<T extends string>({ label, value, options, onChange,
           <Pressable className="absolute inset-0" onPress={() => setOpen(false)} />
           <View className="rounded-2xl border border-line bg-white p-4 shadow-lg">
             <Text className="mb-3 text-lg font-bold text-ink">{label}</Text>
-            {options.map((option) => {
-              const active = option.value === value;
-              return (
-                <Pressable key={option.value} className="min-h-12 flex-row items-center border-t border-line py-3" onPress={() => select(option.value)}>
-                  <Text className={`flex-1 text-base ${active ? "font-semibold text-singha-700" : "text-ink"}`}>{option.label}</Text>
-                  {active ? <Check size={20} color={colors.green} /> : null}
-                </Pressable>
-              );
-            })}
+            <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
+              {options.map((option) => {
+                const active = option.value === value;
+                return (
+                  <Pressable key={option.value} className="min-h-12 flex-row items-center border-t border-line py-3" onPress={() => select(option.value)}>
+                    <Text className={`flex-1 pr-3 text-base ${active ? "font-semibold text-singha-700" : "text-ink"}`}>{option.label}</Text>
+                    {active ? <Check size={20} color={colors.green} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         </View>
       </Modal>

@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import type { DocumentPickerAsset } from "expo-document-picker";
 import { router } from "expo-router";
 import { CalendarDays, CreditCard, FileUp, Mail, MessageSquare, Phone, RotateCcw, User, Users } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,11 +17,11 @@ import { slotTimes } from "@/constants/booking";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useTracks } from "@/hooks/useTracks";
-import { createBooking } from "@/lib/bookingService";
+import { createBooking, makeBookingReference } from "@/lib/bookingService";
 import { displayTimeToDb, formatCurrency, todayISO } from "@/lib/date";
+import { removePaymentProof, uploadPaymentProof } from "@/lib/paymentProofService";
 import { getDefaultSlotPrice } from "@/lib/pricingService";
 import { formatWhatsapp, validateBooking } from "@/lib/validation";
-import { requireSupabase } from "@/lib/supabase";
 import type { PaymentMethod } from "@/types/database";
 
 export default function CreateBookingScreen() {
@@ -37,7 +38,7 @@ export default function CreateBookingScreen() {
   const [remarks, setRemarks] = useState("");
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [proofName, setProofName] = useState<string | null>(null);
-  const [proofAsset, setProofAsset] = useState<any | null>(null);
+  const [proofAsset, setProofAsset] = useState<DocumentPickerAsset | null>(null);
   const [loading, setLoading] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayISO());
   const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
@@ -107,25 +108,11 @@ export default function CreateBookingScreen() {
 
     setLoading(true);
 
-    let storagePath = null;
+    const bookingReference = makeBookingReference();
+    let storagePath: string | null = null;
     if (paymentMethod === "payment_proof" && proofAsset) {
       try {
-        const fileUri = proofAsset.uri;
-        const fileExt = proofAsset.name.split(".").pop() || "jpg";
-        const fileName = `${Date.now()}_proof.${fileExt}`;
-
-        const response = await fetch(fileUri);
-        const blob = await response.blob();
-
-        const { data: storageData, error: storageError } = await requireSupabase().storage
-          .from("payment-proofs")
-          .upload(fileName, blob, {
-            contentType: proofAsset.mimeType || "image/jpeg",
-            upsert: true
-          });
-
-        if (storageError) throw storageError;
-        storagePath = storageData?.path || fileName;
+        storagePath = await uploadPaymentProof(proofAsset, bookingReference);
       } catch (uploadError: any) {
         setLoading(false);
         Alert.alert(t("create.uploadFailed"), t("create.uploadFailedMessage", { message: uploadError.message }));
@@ -134,6 +121,7 @@ export default function CreateBookingScreen() {
     }
 
     const result = await createBooking({
+      bookingReference,
       customer: { nic, full_name: name, email, whatsapp_number: whatsapp },
       bookingDate,
       trackId: track,
@@ -148,6 +136,7 @@ export default function CreateBookingScreen() {
     setLoading(false);
 
     if (result.error) {
+      removePaymentProof(storagePath).catch((cleanupError) => console.error("Failed to remove orphan payment proof:", cleanupError));
       Alert.alert(t("create.bookingFailed"), result.error);
       return;
     }

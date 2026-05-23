@@ -15,6 +15,7 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { useLanguage } from "@/hooks/useLanguage";
 import { getBooking, updateBookingStatus } from "@/lib/bookingService";
 import { todayISO } from "@/lib/date";
+import { getPaymentProofUrl } from "@/lib/paymentProofService";
 import type { BookingStatus } from "@/types/database";
 
 export default function BookingDetailsScreen() {
@@ -72,17 +73,18 @@ export default function BookingDetailsScreen() {
     setReasonStatus(null);
   }
 
-  function viewPaymentProof() {
+  async function viewPaymentProof() {
     const proofPath = booking?.booking_payments?.[0]?.payment_proof_path;
     if (!proofPath) {
       Alert.alert(t("booking.noProof"), t("booking.noProofMessage"));
       return;
     }
-    if (/^https?:\/\//.test(proofPath) || proofPath.startsWith("file://")) {
-      Linking.openURL(proofPath);
-      return;
+    try {
+      const proofUrl = await getPaymentProofUrl(proofPath);
+      Linking.openURL(proofUrl);
+    } catch (error) {
+      Alert.alert(t("booking.noProof"), error instanceof Error ? error.message : t("booking.noProofMessage"));
     }
-    Alert.alert(t("common.paymentProof"), proofPath);
   }
 
   return (

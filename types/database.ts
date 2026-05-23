@@ -123,7 +123,14 @@ export type ServiceResult<T> = {
   error: string | null;
 };
 
+export type PaginatedResult<T> = {
+  items: T[];
+  nextCursor: string | null;
+  totalCount: number;
+};
+
 export type CreateBookingInput = {
+  bookingReference?: string;
   customer: Customer;
   bookingDate: string;
   trackId: string;

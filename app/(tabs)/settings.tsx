@@ -146,8 +146,8 @@ function SettingsSection({ title, subtitle, icon: Icon, rightElement, children }
 
 function ToggleRow({ title, value, onValueChange }: { title: string; value: boolean; onValueChange: (value: boolean) => void }) {
   return (
-    <View className="flex-row items-center justify-between border-t border-line py-4">
-      <Text className="text-lg text-ink">{title}</Text>
+    <View className="flex-row flex-wrap items-center justify-between gap-3 border-t border-line py-4">
+      <Text className="flex-1 text-lg text-ink">{title}</Text>
       <Switch value={value} onValueChange={onValueChange} trackColor={{ true: "#087d24", false: "#d0d5dd" }} />
     </View>
   );
@@ -155,9 +155,9 @@ function ToggleRow({ title, value, onValueChange }: { title: string; value: bool
 
 function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardType }: { icon: typeof XCircle; label: string; value: string; isEditable?: boolean; onChangeText?: (t: string) => void; keyboardType?: any }) {
   return (
-    <View className="flex-row items-center border-t border-line py-4">
+    <View className="flex-row flex-wrap items-center gap-y-3 border-t border-line py-4">
       <Icon size={22} color="#087d24" />
-      <Text className="ml-4 w-1/3 text-lg text-ink">{label}</Text>
+      <Text className="ml-4 min-w-28 flex-1 text-lg text-ink">{label}</Text>
       {isEditable ? (
         <TextInput
           className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-right text-lg text-ink"
@@ -176,12 +176,12 @@ function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardT
 
 function SegmentedToggleRow({ icon: Icon, label, options, value, onChange }: { icon: typeof XCircle; label: string; options: string[]; value: string; onChange: (val: string) => void }) {
   return (
-    <View className="flex-row items-center justify-between border-t border-line py-4">
-      <View className="flex-row items-center flex-1">
+    <View className="flex-row flex-wrap items-center justify-between gap-3 border-t border-line py-4">
+      <View className="min-w-40 flex-1 flex-row items-center">
         <Icon size={22} color="#087d24" />
         <Text className="ml-4 text-lg text-ink">{label}</Text>
       </View>
-      <View className="flex-row items-center overflow-hidden rounded-lg border border-line bg-surface">
+      <View className="flex-row flex-wrap items-center overflow-hidden rounded-lg border border-line bg-surface">
         {options.map((opt, i) => {
           const isSelected = value === opt;
           return (
@@ -201,8 +201,8 @@ function SegmentedToggleRow({ icon: Icon, label, options, value, onChange }: { i
 
 function StepperRow({ icon: Icon, label, value, onIncrement, onDecrement }: { icon: typeof XCircle; label: string; value: number; onIncrement: () => void; onDecrement: () => void }) {
   return (
-    <View className="flex-row items-center justify-between border-t border-line py-4">
-      <View className="flex-row items-center flex-1">
+    <View className="flex-row flex-wrap items-center justify-between gap-3 border-t border-line py-4">
+      <View className="min-w-40 flex-1 flex-row items-center">
         <Icon size={22} color="#087d24" />
         <Text className="ml-4 text-lg text-ink">{label}</Text>
       </View>

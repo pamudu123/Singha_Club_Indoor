@@ -111,6 +111,7 @@ export default function ScheduleScreen() {
       };
     });
   }, [locale, selectedDate]);
+  const scheduleWidth = Math.max(320, 72 + tracks.length * 120);
 
   return (
     <Screen>
@@ -152,22 +153,24 @@ export default function ScheduleScreen() {
       {tracksLoading || loading ? <LoadingState label={t("schedule.loading")} /> : null}
       {tracksError || error ? <ErrorState message={tracksError ?? error ?? ""} /> : null}
 
-      {/* Track Headers Row */}
-      <View className="flex-row items-center mb-3 pr-1">
-        {/* Time Spacer */}
-        <View className="w-16" />
-        {tracks.map((track) => (
-          <View key={track.id} className="flex-1 items-center bg-gray-50 border border-line rounded-xl py-2 mx-1 shadow-sm">
-            <Text className="text-sm font-extrabold text-ink">{track.track_name}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ minWidth: scheduleWidth }}>
+          {/* Track Headers Row */}
+          <View className="flex-row items-center mb-3 pr-1">
+            {/* Time Spacer */}
+            <View className="w-16" />
+            {tracks.map((track) => (
+              <View key={track.id} className="flex-1 items-center bg-gray-50 border border-line rounded-xl py-2 mx-1 shadow-sm">
+                <Text className="text-sm font-extrabold text-ink">{track.track_name}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
 
-      {/* Timetable Rows ScrollView */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-10">
-        {timeSlots.map((timeSlot) => {
-          return (
-            <View key={timeSlot.startTime} className="flex-row items-center mb-3 pr-1">
+          {/* Timetable Rows ScrollView */}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-10">
+            {timeSlots.map((timeSlot) => {
+              return (
+                <View key={timeSlot.startTime} className="flex-row items-center mb-3 pr-1">
               {/* Time Column */}
               <View className="w-16 justify-center items-center">
                 <Text className="text-[11px] font-bold text-ink text-center leading-4">{timeSlot.label.replace(" ", "\n")}</Text>
@@ -238,9 +241,11 @@ export default function ScheduleScreen() {
                   </View>
                 );
               })}
-            </View>
-          );
-        })}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
       </ScrollView>
     </Screen>
   );

@@ -5,6 +5,7 @@ import {
   Modal,
   Pressable,
   RefreshControl,
+  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -177,37 +178,33 @@ export default function ReportsScreen() {
     month: now.getMonth(),
   });
 
-  const [revenue, setRevenue] = useState(32450);
-  const [acceptedCount, setAcceptedCount] = useState(18);
-  const [occupancy, setOccupancy] = useState(72);
-  const [busySlots, setBusySlots] = useState(5);
-  const [utilization, setUtilization] = useState(31);
-  const [bookedHours, setBookedHours] = useState(2.5);
-  const [targetHours, setTargetHours] = useState(8);
+  const [revenue, setRevenue] = useState(hasSupabaseConfig ? 0 : 32450);
+  const [acceptedCount, setAcceptedCount] = useState(hasSupabaseConfig ? 0 : 18);
+  const [occupancy, setOccupancy] = useState(hasSupabaseConfig ? 0 : 72);
+  const [busySlots, setBusySlots] = useState(hasSupabaseConfig ? 0 : 5);
+  const [utilization, setUtilization] = useState(hasSupabaseConfig ? 0 : 31);
+  const [bookedHours, setBookedHours] = useState(hasSupabaseConfig ? 0 : 2.5);
+  const [targetHours, setTargetHours] = useState(hasSupabaseConfig ? 0 : 8);
 
-  const [barsDay, setBarsDay] = useState<number[]>(barsDayMock);
-  const [barsNight, setBarsNight] = useState<number[]>(barsNightMock);
-  const [labels, setLabels] = useState<string[]>(() => getMockLabels(locale));
+  const [barsDay, setBarsDay] = useState<number[]>(hasSupabaseConfig ? [0] : barsDayMock);
+  const [barsNight, setBarsNight] = useState<number[]>(hasSupabaseConfig ? [0] : barsNightMock);
+  const [labels, setLabels] = useState<string[]>(() => (hasSupabaseConfig ? [t("common.today")] : getMockLabels(locale)));
 
   // Real busiest time slots
-  const [busiestSlots, setBusiestSlots] = useState<TimeSlotRank[]>([
-    { label: "7:00 PM - 8:00 PM", count: 0 },
-    { label: "8:00 PM - 9:00 PM", count: 0 },
-    { label: "6:00 PM - 7:00 PM", count: 0 },
-    { label: "9:00 PM - 10:00 PM", count: 0 },
-  ]);
+  const [busiestSlots, setBusiestSlots] = useState<TimeSlotRank[]>(
+    hasSupabaseConfig
+      ? [{ label: t("common.noData"), count: 0 }]
+      : [
+          { label: "7:00 PM - 8:00 PM", count: 0 },
+          { label: "8:00 PM - 9:00 PM", count: 0 },
+          { label: "6:00 PM - 7:00 PM", count: 0 },
+          { label: "9:00 PM - 10:00 PM", count: 0 },
+        ]
+  );
 
   // Real time breakdown
-  const [timeBreakdownBars, setTimeBreakdownBars] = useState<number[]>([
-    4500, 8200, 12000, 6500, 2400,
-  ]);
-  const [timeBreakdownLabels, setTimeBreakdownLabels] = useState<string[]>([
-    "8 AM",
-    "12 PM",
-    "4 PM",
-    "8 PM",
-    "10 PM",
-  ]);
+  const [timeBreakdownBars, setTimeBreakdownBars] = useState<number[]>(hasSupabaseConfig ? [0] : [4500, 8200, 12000, 6500, 2400]);
+  const [timeBreakdownLabels, setTimeBreakdownLabels] = useState<string[]>(hasSupabaseConfig ? [t("common.noData")] : ["8 AM", "12 PM", "4 PM", "8 PM", "10 PM"]);
 
   // Loading and error states
   const [isLoading, setIsLoading] = useState(false);
@@ -581,9 +578,7 @@ export default function ReportsScreen() {
             </Text>
           </View>
         ) : (
-          <View
-            className={`h-64 flex-row items-end ${isDaily ? "justify-between" : "justify-center"}`}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={`h-64 flex-row items-end gap-4 px-1 ${isDaily ? "" : "justify-center flex-1"}`}>
             {currentBarsDay.map((dayVal, index) => {
               const nightVal = currentBarsNight[index] ?? 0;
               const total = dayVal + nightVal;
@@ -622,11 +617,11 @@ export default function ReportsScreen() {
                 </View>
               );
             })}
-          </View>
+          </ScrollView>
         )}
       </Card>
 
-      <View className="mt-5 flex-row gap-3">
+      <View className="mt-5 flex-row flex-wrap gap-3">
         {/* Real busiest time slots */}
         <Card className="flex-1">
           <Text className="mb-3 text-lg font-bold text-ink">
@@ -740,7 +735,7 @@ export default function ReportsScreen() {
             </Text>
           </View>
         ) : (
-          <View className="h-64 flex-row items-end justify-between">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="h-64 flex-row items-end gap-4 px-1">
             {timeBreakdownBars.map((value, index) => {
               const label = timeBreakdownLabels[index];
               const isDay =
@@ -764,7 +759,7 @@ export default function ReportsScreen() {
                 </View>
               );
             })}
-          </View>
+          </ScrollView>
         )}
       </Card>
     </Screen>

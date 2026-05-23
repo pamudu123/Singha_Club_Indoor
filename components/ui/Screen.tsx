@@ -10,7 +10,7 @@ type ScreenProps = ScrollViewProps & {
 
 export const Screen = forwardRef<ScrollView, ScreenProps>(function Screen({ children, scroll = true, className = "", ...props }, ref) {
   const content = scroll ? (
-    <ScrollView ref={ref} className={`flex-1 ${className}`} contentContainerClassName="px-5 pb-28" showsVerticalScrollIndicator={false} {...props}>
+    <ScrollView ref={ref} className={`flex-1 ${className}`} contentContainerClassName="px-5 pb-28" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" {...props}>
       {children}
     </ScrollView>
   ) : (
@@ -22,7 +22,7 @@ export const Screen = forwardRef<ScrollView, ScreenProps>(function Screen({ chil
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         {content}
       </KeyboardAvoidingView>

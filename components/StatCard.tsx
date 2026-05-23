@@ -22,7 +22,7 @@ export function StatCard({ title, value, icon: Icon, tone = "green", detail, inf
   const iconColor = tone === "green" ? "#087d24" : tone === "orange" ? "#f79009" : "#f04438";
 
   return (
-    <Card className="min-h-36 flex-1 justify-between relative overflow-hidden">
+    <Card className="min-h-36 min-w-36 flex-1 justify-between relative overflow-hidden">
       {info ? (
         <Pressable
           onPress={() => Alert.alert(title, info)}

@@ -4,16 +4,16 @@ import { Text, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { BookingCard } from "@/components/BookingCard";
 import { SegmentedFilter } from "@/components/SegmentedFilter";
+import { AppButton } from "@/components/ui/AppButton";
 import { DatePickerField } from "@/components/ui/DatePickerField";
 import { FormField } from "@/components/ui/FormField";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/StateView";
 import { Screen } from "@/components/ui/Screen";
-import { useAsyncData } from "@/hooks/useAsyncData";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useTracks } from "@/hooks/useTracks";
 import { addDays, todayISO } from "@/lib/date";
 import { listBookings } from "@/lib/bookingService";
-import type { BookingStatus } from "@/types/database";
+import type { Booking, BookingStatus } from "@/types/database";
 
 type Filter = "all" | BookingStatus;
 type DateFilter = "all" | "date" | "tomorrow" | "week";
@@ -31,44 +31,81 @@ export default function RequestsScreen() {
   const [trackFilter, setTrackFilter] = useState<TrackFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
   const { trackOptions, error: tracksError } = useTracks();
-  const { data, error, loading, refresh } = useAsyncData(
-    () => listBookings({ status: filter, dateFilter, selectedDate, onlyFutureOrToday: true }),
-    [filter, dateFilter, selectedDate],
-    true
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const dateRange = useMemo(() => {
+    if (dateFilter === "tomorrow") {
+      const tomorrow = addDays(todayISO(), 1);
+      return { dateStart: tomorrow, dateEnd: tomorrow };
+    }
+    if (dateFilter === "week") {
+      return { dateStart: selectedDate, dateEnd: addDays(selectedDate, 6) };
+    }
+    return { dateStart: undefined, dateEnd: undefined };
+  }, [dateFilter, selectedDate]);
+
+  const refreshBookings = useCallback(
+    async ({ reset, cursor }: { reset: boolean; cursor?: string | null }) => {
+      if (reset) setLoading(true);
+      else setLoadingMore(true);
+      const result = await listBookings({
+        status: filter,
+        dateFilter: dateFilter === "date" ? "date" : "all",
+        selectedDate,
+        dateStart: dateRange.dateStart,
+        dateEnd: dateRange.dateEnd,
+        onlyFutureOrToday: true,
+        trackId: trackFilter,
+        paymentMethod: paymentFilter,
+        cursor: cursor ?? null,
+        pageSize: 20
+      });
+      setLoading(false);
+      setLoadingMore(false);
+
+      if (result.error || !result.data) {
+        setError(result.error ?? "Could not load bookings.");
+        if (reset) {
+          setBookings([]);
+          setNextCursor(null);
+          setTotalCount(0);
+        }
+        return;
+      }
+
+      const page = result.data;
+      setError(null);
+      setBookings((current) => (reset ? page.items : [...current, ...page.items]));
+      setNextCursor(page.nextCursor);
+      setTotalCount(page.totalCount);
+    },
+    [dateFilter, dateRange.dateEnd, dateRange.dateStart, filter, paymentFilter, selectedDate, trackFilter]
   );
 
   useFocusEffect(
     useCallback(() => {
-      refresh();
-    }, [refresh])
+      refreshBookings({ reset: true });
+    }, [refreshBookings])
   );
-  const bookings = useMemo(() => data ?? [], [data]);
+
   const filtered = useMemo(
     () =>
       bookings.filter((booking) => {
-        const isNotPast = booking.booking_date >= todayISO();
-        const statusMatch = filter === "all" || booking.status === filter;
         const query = search.trim().toLowerCase();
-        const searchMatch =
+        return (
           !query ||
           booking.booking_reference.toLowerCase().includes(query) ||
           booking.customers?.full_name?.toLowerCase().includes(query) ||
           booking.customers?.whatsapp_number?.toLowerCase().includes(query) ||
-          booking.customer_nic.toLowerCase().includes(query);
-        const slot = booking.booking_slots?.[0];
-        const payment = booking.booking_payments?.[0];
-        const tomorrow = addDays(todayISO(), 1);
-        const weekEnd = addDays(selectedDate, 6);
-        const dateMatch =
-          dateFilter === "all" ||
-          (dateFilter === "date" && booking.booking_date === selectedDate) ||
-          (dateFilter === "tomorrow" && booking.booking_date === tomorrow) ||
-          (dateFilter === "week" && booking.booking_date >= selectedDate && booking.booking_date <= weekEnd);
-        const trackMatch = trackFilter === "all" || String(slot?.track_id) === trackFilter;
-        const paymentMatch = paymentFilter === "all" || payment?.payment_method === paymentFilter;
-        return isNotPast && statusMatch && searchMatch && dateMatch && trackMatch && paymentMatch;
+          booking.customer_nic.toLowerCase().includes(query)
+        );
       }),
-    [bookings, dateFilter, filter, paymentFilter, search, selectedDate, trackFilter]
+    [bookings, search]
   );
   const counts = useMemo(
     () => ({
@@ -143,13 +180,22 @@ export default function RequestsScreen() {
           </FilterCategory>
         </View>
       ) : null}
-      <Text className="mb-4 mt-5 text-sm text-muted">{t("requests.shown", { shown: filtered.length, total: bookings.length })}</Text>
+      <Text className="mb-4 mt-5 text-sm text-muted">{t("requests.shown", { shown: filtered.length, total: totalCount })}</Text>
       {loading ? <LoadingState label={t("requests.loading")} /> : null}
       {error || tracksError ? <ErrorState message={error ?? tracksError ?? ""} /> : null}
       {!loading && filtered.length === 0 ? <EmptyState title={t("requests.emptyTitle")} message={t("requests.emptyMessage")} /> : null}
       {filtered.map((booking, index) => (
         <BookingCard key={booking.booking_id} booking={booking} expanded={index === 0 && filter !== "accepted"} />
       ))}
+      {nextCursor ? (
+        <AppButton
+          className="mb-6"
+          title={loadingMore ? t("common.loading") : t("common.show")}
+          variant="ghost"
+          loading={loadingMore}
+          onPress={() => refreshBookings({ reset: false, cursor: nextCursor })}
+        />
+      ) : null}
     </Screen>
   );
 }
