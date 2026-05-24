@@ -41,6 +41,8 @@ export async function listSlotPrices(trackId: string): Promise<ServiceResult<Slo
         effective_from,
         effective_to,
         is_active,
+        created_at,
+        updated_at,
         tracks (
           id,
           track_name
@@ -115,7 +117,7 @@ export async function updateSlotPrice(input: {
     };
     const { error } = await getWritableSupabase()
       .from("slot_prices")
-      .update(updates)
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq("id", input.id);
     if (error) throw error;
     return { error: null };

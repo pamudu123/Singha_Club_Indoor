@@ -58,12 +58,15 @@ export async function signup(input: {
   fullName: string;
   whatsappNumber: string;
   email: string;
+  nic: string;
 }): Promise<ServiceResult<AdminUser>> {
   const fullName = input.fullName.trim();
   const whatsappNumber = input.whatsappNumber.trim();
   const email = input.email.trim();
+  const nic = input.nic.trim();
 
   if (!fullName) return { data: null, error: "Name is required." };
+  if (!nic) return { data: null, error: "NIC is required." };
   if (!whatsappNumber) return { data: null, error: "WhatsApp number is required." };
   if (!isEmail(email)) return { data: null, error: "Enter a valid email address." };
 
@@ -77,6 +80,7 @@ export async function signup(input: {
         .insert({
           id: adminId,
           full_name: fullName,
+          nic,
           email,
           whatsapp_number: whatsappNumber,
           is_active: true
@@ -95,6 +99,7 @@ export async function signup(input: {
     data: {
       id: createAdminId(),
       full_name: fullName,
+      nic,
       email,
       whatsapp_number: whatsappNumber,
       is_active: true
@@ -107,10 +112,12 @@ export async function updateAdminProfile(id: string, input: {
   fullName: string;
   whatsappNumber: string;
   email: string;
+  nic?: string | null;
 }): Promise<ServiceResult<AdminUser>> {
   const fullName = input.fullName.trim();
   const whatsappNumber = input.whatsappNumber.trim();
   const email = input.email.trim();
+  const nic = input.nic?.trim() || null;
 
   if (!fullName) return { data: null, error: "Name is required." };
   if (!whatsappNumber) return { data: null, error: "WhatsApp number is required." };
@@ -124,6 +131,8 @@ export async function updateAdminProfile(id: string, input: {
           full_name: fullName,
           email,
           whatsapp_number: whatsappNumber,
+          nic,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", id)
         .select("*")
@@ -142,6 +151,7 @@ export async function updateAdminProfile(id: string, input: {
       full_name: fullName,
       email,
       whatsapp_number: whatsappNumber,
+      nic,
       is_active: true
     },
     error: null

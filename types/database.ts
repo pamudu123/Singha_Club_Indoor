@@ -28,6 +28,8 @@ export type Track = {
   track_name: string;
   description?: string | null;
   is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Booking = {
@@ -51,6 +53,8 @@ export type Booking = {
   customers?: Customer | null;
   booking_slots?: BookingSlot[];
   booking_payments?: BookingPayment[];
+  accepted_admin?: { full_name: string } | null;
+  rejected_admin?: { full_name: string } | null;
 };
 
 export type BookingSlot = {
@@ -75,6 +79,7 @@ export type BlockedSlot = {
   reason: string;
   created_by_admin_id: string;
   created_at?: string;
+  updated_at?: string;
   tracks?: Track | null;
 };
 
@@ -89,6 +94,8 @@ export type SlotPrice = {
   effective_from: string;
   effective_to?: string | null;
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
   tracks?: Track | null;
 };
 
@@ -97,16 +104,19 @@ export type BookingPayment = {
   booking_id: string;
   payment_method: PaymentMethod;
   payment_proof_path?: string | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type BookingStatusHistory = {
   id: string;
   booking_id: string;
-  old_status: BookingStatus;
+  old_status: BookingStatus | null;
   new_status: BookingStatus;
-  changed_by_admin_id: string;
+  changed_by_admin_id: string | null;
   reason?: string | null;
   created_at?: string;
+  changed_by_admin?: { full_name: string } | null;
 };
 
 export type AdminActivityLog = {

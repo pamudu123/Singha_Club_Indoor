@@ -111,10 +111,9 @@ export default function ScheduleScreen() {
       };
     });
   }, [locale, selectedDate]);
-  const scheduleWidth = Math.max(320, 72 + tracks.length * 120);
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <AppHeader title={t("schedule.title")} subtitle={t("schedule.subtitle")} />
 
       <View className="mb-5 flex-row items-center gap-2">
@@ -153,8 +152,8 @@ export default function ScheduleScreen() {
       {tracksLoading || loading ? <LoadingState label={t("schedule.loading")} /> : null}
       {tracksError || error ? <ErrorState message={tracksError ?? error ?? ""} /> : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ minWidth: scheduleWidth }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }} className="flex-1">
+        <View style={{ width: "100%", minWidth: 72 + tracks.length * 140, flex: 1 }}>
           {/* Track Headers Row */}
           <View className="flex-row items-center mb-3 pr-1">
             {/* Time Spacer */}
@@ -167,7 +166,7 @@ export default function ScheduleScreen() {
           </View>
 
           {/* Timetable Rows ScrollView */}
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-10">
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-10" className="flex-1">
             {timeSlots.map((timeSlot) => {
               return (
                 <View key={timeSlot.startTime} className="flex-row items-center mb-3 pr-1">
@@ -187,7 +186,7 @@ export default function ScheduleScreen() {
                   (s) => s.track_id === trackItem.id && toHHMM(s.start_time) === timeSlot.startTime
                 );
 
-                let status: BookingStatus | "blocked" | "available" = "available";
+                let status: BookingStatus | "blocked" | "available" | "free" = "available";
                 let title = t("schedule.noBooking");
                 let subtitle = t("schedule.tapToBook");
 
@@ -197,7 +196,8 @@ export default function ScheduleScreen() {
                   subtitle = t("common.unavailable");
                 } else if (bookedSlot) {
                   const booking = bookedSlot.bookings;
-                  status = (booking?.status as BookingStatus) ?? "accepted";
+                  const isFree = booking?.total_price === 0;
+                  status = isFree && booking?.status === "accepted" ? "free" : ((booking?.status as BookingStatus) ?? "accepted");
                   const isFuture = bookedSlot.slot_date > todayISO();
                   title = isFuture ? t("schedule.bookedSession") : (booking?.customers?.full_name ?? t("schedule.bookedSession"));
                   subtitle = booking?.booking_reference 
@@ -234,7 +234,8 @@ export default function ScheduleScreen() {
                         accepted: t("common.accepted"),
                         submitted: t("schedule.submittedShort"),
                         onHold: t("schedule.holdShort"),
-                        rejected: t("schedule.rejectedShort")
+                        rejected: t("schedule.rejectedShort"),
+                        free: t("schedule.freeShort")
                       }}
                       onPress={handlePress}
                     />
@@ -254,7 +255,7 @@ export default function ScheduleScreen() {
 interface TileProps {
   title: string;
   subtitle: string;
-  status: BookingStatus | "blocked" | "available";
+  status: BookingStatus | "blocked" | "available" | "free";
   statusTextLabels: {
     open: string;
     blocked: string;
@@ -262,6 +263,7 @@ interface TileProps {
     submitted: string;
     onHold: string;
     rejected: string;
+    free: string;
   };
   onPress: () => void;
 }
@@ -284,6 +286,11 @@ function ScheduleTile({ title, subtitle, status, statusTextLabels, onPress }: Ti
     textClass = "text-green-900";
     statusText = statusTextLabels.accepted;
     statusColor = "text-green-700 bg-green-100";
+  } else if (status === "free") {
+    bgClass = "bg-emerald-50/80 border-emerald-200 active:bg-emerald-100/60";
+    textClass = "text-emerald-900 font-bold";
+    statusText = statusTextLabels.free;
+    statusColor = "text-emerald-700 bg-emerald-100";
   } else if (status === "submitted" || status === "on_hold") {
     bgClass = "bg-amber-50/70 border-amber-200 active:bg-amber-100/60";
     textClass = "text-amber-900";

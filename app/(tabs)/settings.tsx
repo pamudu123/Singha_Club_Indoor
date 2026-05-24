@@ -27,6 +27,7 @@ export default function SettingsScreen() {
   const [name, setName] = useState(admin?.full_name ?? "Local Admin");
   const [whatsapp, setWhatsapp] = useState(admin?.whatsapp_number ?? "+94 77 123 4567");
   const [email, setEmail] = useState(admin?.email ?? "admin@singha.club");
+  const [nic, setNic] = useState(admin?.nic ?? "");
   const [maxSlots, setMaxSlots] = useState(10);
 
   async function onLogout() {
@@ -41,7 +42,8 @@ export default function SettingsScreen() {
       const res = await updateAdminProfile(admin?.id ?? localAdminId, {
         fullName: name,
         whatsappNumber: whatsapp,
-        email
+        email,
+        nic
       });
       setIsSaving(false);
 
@@ -56,6 +58,7 @@ export default function SettingsScreen() {
       setName(admin?.full_name ?? "Local Admin");
       setWhatsapp(admin?.whatsapp_number ?? "+94 77 123 4567");
       setEmail(admin?.email ?? "admin@singha.club");
+      setNic(admin?.nic ?? "");
       setIsUnlocked(true);
     }
   }
@@ -93,6 +96,7 @@ export default function SettingsScreen() {
         }
       >
         <InfoRow icon={User} label={t("settings.userDetails.name")} value={name} isEditable={isUnlocked} onChangeText={setName} />
+        <InfoRow icon={User} label={t("settings.userDetails.nic")} value={nic} isEditable={isUnlocked} onChangeText={setNic} placeholder="-" />
         <InfoRow icon={MessageCircle} label={t("settings.userDetails.whatsapp")} value={whatsapp} isEditable={isUnlocked} onChangeText={(text) => setWhatsapp(formatWhatsapp(text))} keyboardType="phone-pad" />
         <InfoRow icon={Mail} label={t("settings.userDetails.email")} value={email} isEditable={isUnlocked} onChangeText={setEmail} keyboardType="email-address" />
       </SettingsSection>
@@ -139,7 +143,7 @@ function ToggleRow({ title, value, onValueChange }: { title: string; value: bool
   );
 }
 
-function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardType }: { icon: typeof XCircle; label: string; value: string; isEditable?: boolean; onChangeText?: (t: string) => void; keyboardType?: any }) {
+function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardType, placeholder }: { icon: typeof XCircle; label: string; value: string; isEditable?: boolean; onChangeText?: (t: string) => void; keyboardType?: any; placeholder?: string }) {
   return (
     <View className="flex-row flex-wrap items-center gap-y-3 border-t border-line py-4">
       <Icon size={22} color="#087d24" />
@@ -151,10 +155,11 @@ function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardT
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
+          placeholder={placeholder}
         />
       ) : (
         <Text className="flex-1 text-right text-muted" numberOfLines={1}>
-          {value}
+          {value || placeholder || "-"}
         </Text>
       )}
     </View>

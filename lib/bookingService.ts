@@ -1,4 +1,4 @@
-import type { Booking, BookingStatus, CreateBookingInput, PaginatedResult, PaymentMethod, ServiceResult } from "@/types/database";
+import type { Booking, BookingStatus, BookingStatusHistory, CreateBookingInput, PaginatedResult, PaymentMethod, ServiceResult } from "@/types/database";
 import { getDefaultCurrency } from "./pricingService";
 import { getWritableSupabase, requireSupabase, toServiceError } from "./supabase";
 import { todayISO } from "./date";
@@ -14,6 +14,13 @@ const bookingSelect = `
   total_price,
   currency,
   created_at,
+  updated_at,
+  accepted_by_admin_id,
+  accepted_at,
+  rejected_by_admin_id,
+  rejected_at,
+  rejection_reason,
+  on_hold_reason,
   customers (
     nic,
     full_name,
@@ -36,9 +43,59 @@ const bookingSelect = `
   booking_payments (
     id,
     payment_method,
-    payment_proof_path
+    payment_proof_path,
+    created_at,
+    updated_at
   )
 `;
+
+async function hydrateBookingAdminNames(client: ReturnType<typeof requireSupabase>, bookings: Booking[]) {
+  const adminIds = [
+    ...new Set(
+      bookings
+        .flatMap((booking) => [booking.accepted_by_admin_id, booking.rejected_by_admin_id])
+        .filter((id): id is string => Boolean(id))
+    )
+  ];
+
+  if (!adminIds.length) return bookings;
+
+  const { data, error } = await client
+    .from("admin_users")
+    .select("id, full_name")
+    .in("id", adminIds);
+  if (error) {
+    console.warn("Could not load booking admin names", error.message);
+    return bookings;
+  }
+
+  const adminsById = new Map((data ?? []).map((admin) => [admin.id as string, { full_name: admin.full_name as string }]));
+  return bookings.map((booking) => ({
+    ...booking,
+    accepted_admin: booking.accepted_by_admin_id ? adminsById.get(booking.accepted_by_admin_id) ?? null : null,
+    rejected_admin: booking.rejected_by_admin_id ? adminsById.get(booking.rejected_by_admin_id) ?? null : null
+  }));
+}
+
+async function hydrateHistoryAdminNames(client: ReturnType<typeof requireSupabase>, history: BookingStatusHistory[]) {
+  const adminIds = [...new Set(history.map((entry) => entry.changed_by_admin_id).filter((id): id is string => Boolean(id)))];
+  if (!adminIds.length) return history;
+
+  const { data, error } = await client
+    .from("admin_users")
+    .select("id, full_name")
+    .in("id", adminIds);
+  if (error) {
+    console.warn("Could not load booking history admin names", error.message);
+    return history;
+  }
+
+  const adminsById = new Map((data ?? []).map((admin) => [admin.id as string, { full_name: admin.full_name as string }]));
+  return history.map((entry) => ({
+    ...entry,
+    changed_by_admin: entry.changed_by_admin_id ? adminsById.get(entry.changed_by_admin_id) ?? null : null
+  }));
+}
 
 export function makeBookingReference() {
   return `SCB-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
@@ -115,7 +172,7 @@ export async function listBookings(filters?: {
     
     const { data, error, count } = await query;
     if (error) throw error;
-    const items = (data as unknown as Booking[]) ?? [];
+    const items = await hydrateBookingAdminNames(client, ((data as unknown as Booking[]) ?? []));
     return {
       data: {
         items,
@@ -138,7 +195,8 @@ export async function getBooking(bookingId: string): Promise<ServiceResult<Booki
       .eq("booking_id", bookingId)
       .single();
     if (error) throw error;
-    return { data: data as unknown as Booking, error: null };
+    const [booking] = await hydrateBookingAdminNames(client, [data as unknown as Booking]);
+    return { data: booking, error: null };
   } catch (error) {
     return { data: null, error: toServiceError(error) };
   }
@@ -150,12 +208,17 @@ export async function updateBookingStatus(input: {
   newStatus: BookingStatus;
   adminId: string;
   reason?: string;
+  isFree?: boolean;
 }) {
   try {
     const client = getWritableSupabase();
     const decisionFields =
       input.newStatus === "accepted"
-        ? { accepted_by_admin_id: input.adminId, accepted_at: new Date().toISOString() }
+        ? { 
+            accepted_by_admin_id: input.adminId, 
+            accepted_at: new Date().toISOString(),
+            ...(input.isFree ? { total_price: 0 } : {})
+          }
         : input.newStatus === "rejected"
           ? { rejected_by_admin_id: input.adminId, rejected_at: new Date().toISOString(), rejection_reason: input.reason }
           : input.newStatus === "on_hold"
@@ -164,16 +227,24 @@ export async function updateBookingStatus(input: {
 
     const { error } = await client
       .from("bookings")
-      .update({ status: input.newStatus, ...decisionFields })
+      .update({ status: input.newStatus, updated_at: new Date().toISOString(), ...decisionFields })
       .eq("booking_id", input.bookingId);
     if (error) throw error;
 
     if (input.newStatus === "rejected") {
       const { error: slotsError } = await client
         .from("booking_slots")
-        .update({ slot_status: "released" })
+        .update({ slot_status: "released", updated_at: new Date().toISOString() })
         .eq("booking_id", input.bookingId);
       if (slotsError) throw slotsError;
+    }
+
+    if (input.isFree && input.newStatus === "accepted") {
+      const { error: slotsPriceError } = await client
+        .from("booking_slots")
+        .update({ price_at_booking: 0, updated_at: new Date().toISOString() })
+        .eq("booking_id", input.bookingId);
+      if (slotsPriceError) throw slotsPriceError;
     }
 
     const { error: historyError } = await client.from("booking_status_history").insert({
@@ -181,21 +252,45 @@ export async function updateBookingStatus(input: {
       old_status: input.oldStatus,
       new_status: input.newStatus,
       changed_by_admin_id: input.adminId,
-      reason: input.reason ?? `Booking ${input.newStatus}`
+      reason: input.reason ?? (input.isFree ? "Booking approved as free/complimentary" : `Booking ${input.newStatus}`)
     });
     if (historyError) throw historyError;
 
     const { error: activityError } = await client.from("admin_activity_logs").insert({
       admin_user_id: input.adminId,
       booking_id: input.bookingId,
-      action_type: `booking_${input.newStatus}`,
-      description: `Booking marked as ${input.newStatus}`
+      action_type: input.isFree && input.newStatus === "accepted" ? "booking_free_approved" : `booking_${input.newStatus}`,
+      description: input.isFree && input.newStatus === "accepted" ? "Booking approved as complimentary/free" : `Booking marked as ${input.newStatus}`
     });
     if (activityError) throw activityError;
 
     return { error: null };
   } catch (error) {
     return { error: toServiceError(error) };
+  }
+}
+
+export async function listBookingHistory(bookingId: string): Promise<ServiceResult<BookingStatusHistory[]>> {
+  try {
+    const client = requireSupabase();
+    const { data, error } = await client
+      .from("booking_status_history")
+      .select(`
+        id,
+        booking_id,
+        old_status,
+        new_status,
+        changed_by_admin_id,
+        reason,
+        created_at
+      `)
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const rows = (data as unknown as BookingStatusHistory[]) ?? [];
+    return { data: await hydrateHistoryAdminNames(client, rows), error: null };
+  } catch (error) {
+    return { data: null, error: toServiceError(error) };
   }
 }
 

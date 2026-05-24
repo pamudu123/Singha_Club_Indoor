@@ -1,5 +1,5 @@
 import { Link, router } from "expo-router";
-import { Mail, Phone, User } from "lucide-react-native";
+import { CreditCard, Mail, Phone, User } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Image, Text, View } from "react-native";
 import { logo } from "@/constants/theme";
@@ -15,18 +15,19 @@ export default function SignupScreen() {
   const { setAdmin } = useAuth();
   const { t, tv } = useLanguage();
   const [fullName, setFullName] = useState("");
+  const [nic, setNic] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   async function onSubmit() {
-    const validation = validateSignup({ fullName, whatsappNumber, email });
+    const validation = validateSignup({ fullName, whatsappNumber, email, nic });
     setFormError(tv(validation));
     if (validation) return;
 
     setLoading(true);
-    const result = await signup({ fullName, whatsappNumber, email });
+    const result = await signup({ fullName, whatsappNumber, email, nic });
     setLoading(false);
     if (result.error || !result.data) {
       Alert.alert(t("auth.signupFailed"), tv(result.error) ?? result.error ?? t("auth.tryAgain"));
@@ -46,6 +47,7 @@ export default function SignupScreen() {
 
       <View className="mt-8 gap-4">
         <FormField label={t("common.name")} icon={User} value={fullName} onChangeText={setFullName} />
+        <FormField label={t("auth.nic")} icon={CreditCard} value={nic} onChangeText={setNic} placeholder={t("auth.nicPlaceholder")} autoCapitalize="characters" />
         <FormField label={t("settings.userDetails.whatsapp")} icon={Phone} value={whatsappNumber} onChangeText={(text) => setWhatsappNumber(formatWhatsapp(text))} placeholder="012 345 6789" keyboardType="phone-pad" />
         <FormField label={t("common.email")} icon={Mail} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={formError} />
         <AppButton title={t("common.createAccount")} loading={loading} onPress={onSubmit} />

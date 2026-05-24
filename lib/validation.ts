@@ -13,8 +13,10 @@ export function validateSignup(input: {
   fullName: string;
   whatsappNumber: string;
   email: string;
+  nic: string;
 }) {
   if (!input.fullName.trim()) return "Name is required.";
+  if (!input.nic.trim()) return "NIC is required.";
   if (!input.whatsappNumber.trim()) return "WhatsApp number is required.";
   if (!isEmail(input.email)) return "Enter a valid email address.";
   return null;
