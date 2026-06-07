@@ -11,11 +11,13 @@ import { SelectField } from "@/components/ui/SelectField";
 import { ErrorState, LoadingState } from "@/components/ui/StateView";
 import { Screen } from "@/components/ui/Screen";
 import { useAsyncData } from "@/hooks/useAsyncData";
+import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useTracks } from "@/hooks/useTracks";
 import { displayTime, displayTimeToDb, formatCurrency, formatDateLabel, todayISO } from "@/lib/date";
 import { createSlotPrice, getDefaultCurrency, getDefaultSlotPrice, listSlotPrices, loadDefaultSlotPrice, markSlotPriceDeleted, updateDefaultSlotPrice, updateSlotPrice } from "@/lib/pricingService";
 import { slotTimes } from "@/constants/booking";
+import { localAdminId } from "@/constants/admin";
 import type { DayType, SlotPrice } from "@/types/database";
 
 type ActiveValue = "active" | "inactive";
@@ -30,6 +32,7 @@ const dayTypeKeys: Record<DayType, string> = {
 };
 
 export default function PricingScreen() {
+  const { admin } = useAuth();
   const { locale, t } = useLanguage();
   const [track, setTrack] = useState<string>("");
   const [editing, setEditing] = useState<SlotPrice | null>(null);
@@ -48,6 +51,7 @@ export default function PricingScreen() {
   const [defaultPriceInput, setDefaultPriceInput] = useState(String(getDefaultSlotPrice()));
   const [defaultPriceUnlocked, setDefaultPriceUnlocked] = useState(false);
   const defaultCurrency = getDefaultCurrency();
+  const adminId = admin?.id ?? localAdminId;
   const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
   const { data, error, loading, refresh } = useAsyncData(
     () => (track ? listSlotPrices(track) : Promise.resolve({ data: [], error: null })),
@@ -60,11 +64,11 @@ export default function PricingScreen() {
   }, [track, tracks]);
 
   useEffect(() => {
-    loadDefaultSlotPrice().then((loadedPrice) => {
+    loadDefaultSlotPrice(adminId).then((loadedPrice) => {
       setDefaultPrice(loadedPrice);
       setDefaultPriceInput(String(loadedPrice));
     });
-  }, []);
+  }, [adminId]);
 
   function openAdd() {
     setEditing(null);
@@ -110,7 +114,7 @@ export default function PricingScreen() {
     }
 
     setDefaultPrice(numericPrice);
-    await updateDefaultSlotPrice(numericPrice);
+    await updateDefaultSlotPrice(numericPrice, adminId);
     setDefaultPriceUnlocked(false);
   }
 

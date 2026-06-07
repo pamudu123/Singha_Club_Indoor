@@ -3,6 +3,11 @@ import type { AdminUser, ServiceResult } from "@/types/database";
 import { hasSupabaseConfig, requireSupabase, toServiceError } from "./supabase";
 import { isEmail } from "./validation";
 
+type AuthClientWithSession = {
+  getSession: () => Promise<{ data: { session: unknown | null }; error?: { message?: string } | null }>;
+  signOut: () => Promise<{ error?: { message?: string } | null }>;
+};
+
 function createAdminId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -18,7 +23,8 @@ function createAdminId() {
 export async function getCurrentSession() {
   if (!hasSupabaseConfig) return { data: null, error: null };
   try {
-    const { data, error } = await requireSupabase().auth.getSession();
+    const auth = requireSupabase().auth as unknown as AuthClientWithSession;
+    const { data, error } = await auth.getSession();
     return { data: data.session, error: error?.message ?? null };
   } catch (error) {
     return { data: null, error: toServiceError(error) };
@@ -161,7 +167,8 @@ export async function updateAdminProfile(id: string, input: {
 export async function logout() {
   if (!hasSupabaseConfig) return { error: null };
   try {
-    const { error } = await requireSupabase().auth.signOut();
+    const auth = requireSupabase().auth as unknown as AuthClientWithSession;
+    const { error } = await auth.signOut();
     return { error: error?.message ?? null };
   } catch (error) {
     return { error: toServiceError(error) };

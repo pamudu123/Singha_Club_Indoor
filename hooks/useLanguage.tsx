@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { dictionary, languageLocales, type Language } from "@/constants/translations";
 
@@ -34,10 +34,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const setLang = (newLang: Language) => {
+  const setLang = useCallback((newLang: Language) => {
     setLangState(newLang);
     AsyncStorage.setItem("app_lang", newLang);
-  };
+  }, []);
 
   const value = useMemo<LanguageContextType>(() => {
     const t = (key: string, values?: TranslationValues) => {

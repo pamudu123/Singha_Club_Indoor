@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { Bell, CheckCircle2, Globe, Lock, LogOut, Mail, MessageCircle, Settings2, Unlock, User, XCircle } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -11,55 +10,71 @@ import { languageLabels } from "@/constants/translations";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { logout, updateAdminProfile } from "@/lib/authService";
+import { getDefaultAdminSettings, loadAdminSettings, saveAdminSettings, type AdminSettings, type NotificationSettings } from "@/lib/settingsService";
 import { formatWhatsapp } from "@/lib/validation";
-
-const settingsStorageKey = "singha.adminSettings";
 
 export default function SettingsScreen() {
   const { admin, setAdmin } = useAuth();
   const { lang, setLang, t, tv } = useLanguage();
-  const [notifications, setNotifications] = useState({
-    booking: true,
-    accepted: true,
-    rejected: true,
-    onHold: true,
-    summary: true
-  });
+  const defaultSettings = getDefaultAdminSettings();
+  const [notifications, setNotifications] = useState<NotificationSettings>(defaultSettings.notifications);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(admin?.full_name ?? "Local Admin");
   const [whatsapp, setWhatsapp] = useState(admin?.whatsapp_number ?? "+94 77 123 4567");
   const [email, setEmail] = useState(admin?.email ?? "admin@singha.club");
   const [nic, setNic] = useState(admin?.nic ?? "");
-  const [maxSlots, setMaxSlots] = useState(10);
+  const [maxSlots, setMaxSlots] = useState(defaultSettings.maxSlots);
+  const [defaultSlotPrice, setDefaultSlotPrice] = useState(defaultSettings.defaultSlotPrice);
+  const adminId = admin?.id ?? localAdminId;
 
   useEffect(() => {
-    AsyncStorage.getItem(settingsStorageKey).then((storedSettings) => {
-      if (!storedSettings) return;
-      try {
-        const parsed = JSON.parse(storedSettings) as { notifications?: typeof notifications; maxSlots?: number };
-        if (parsed.notifications) setNotifications(parsed.notifications);
-        if (typeof parsed.maxSlots === "number") setMaxSlots(parsed.maxSlots);
-      } catch (error) {
-        console.warn("Could not load admin settings", error);
-      }
+    let cancelled = false;
+    loadAdminSettings(adminId).then((result) => {
+      if (cancelled || !result.data) return;
+      setNotifications(result.data.notifications);
+      setMaxSlots(result.data.maxSlots);
+      setDefaultSlotPrice(result.data.defaultSlotPrice);
+      setLang(result.data.language);
     });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [adminId, setLang]);
 
-  function persistSettings(nextNotifications = notifications, nextMaxSlots = maxSlots) {
-    AsyncStorage.setItem(settingsStorageKey, JSON.stringify({ notifications: nextNotifications, maxSlots: nextMaxSlots })).catch((error) => {
+  function persistSettings(nextSettings: AdminSettings) {
+    saveAdminSettings(adminId, nextSettings).then((result) => {
+      if (result.error) {
+        console.warn("Could not save admin settings", result.error);
+      }
+    }).catch((error) => {
       console.warn("Could not save admin settings", error);
     });
   }
 
-  function updateNotifications(nextNotifications: typeof notifications) {
+  function currentSettings(overrides: Partial<AdminSettings> = {}): AdminSettings {
+    return {
+      language: lang,
+      notifications,
+      maxSlots,
+      defaultSlotPrice,
+      ...overrides
+    };
+  }
+
+  function updateNotifications(nextNotifications: NotificationSettings) {
     setNotifications(nextNotifications);
-    persistSettings(nextNotifications, maxSlots);
+    persistSettings(currentSettings({ notifications: nextNotifications }));
   }
 
   function updateMaxSlots(nextMaxSlots: number) {
     setMaxSlots(nextMaxSlots);
-    persistSettings(notifications, nextMaxSlots);
+    persistSettings(currentSettings({ maxSlots: nextMaxSlots }));
+  }
+
+  function updateLanguage(nextLanguage: "en" | "si") {
+    setLang(nextLanguage);
+    persistSettings(currentSettings({ language: nextLanguage }));
   }
 
   async function onLogout() {
@@ -105,7 +120,7 @@ export default function SettingsScreen() {
           label={t("settings.language")} 
           options={[languageLabels.en, languageLabels.si]} 
           value={languageLabels[lang]} 
-          onChange={(val) => setLang(val === languageLabels.si ? "si" : "en")} 
+          onChange={(val) => updateLanguage(val === languageLabels.si ? "si" : "en")} 
         />
       </SettingsSection>
 

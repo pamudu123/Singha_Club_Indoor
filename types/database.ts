@@ -130,6 +130,19 @@ export type AdminActivityLog = {
   created_at?: string;
 };
 
+export type AdminUserSettings = {
+  admin_user_id: string;
+  language: "en" | "si";
+  notify_new_booking: boolean;
+  notify_accepted: boolean;
+  notify_rejected: boolean;
+  notify_on_hold: boolean;
+  notify_daily_summary: boolean;
+  max_slots_per_booking: number;
+  default_slot_price?: number | null;
+  updated_at?: string;
+};
+
 export type ServiceResult<T> = {
   data: T | null;
   error: string | null;

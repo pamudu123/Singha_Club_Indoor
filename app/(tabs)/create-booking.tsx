@@ -20,7 +20,8 @@ import { useTracks } from "@/hooks/useTracks";
 import { createBooking, makeBookingReference } from "@/lib/bookingService";
 import { displayTimeToDb, formatCurrency, todayISO } from "@/lib/date";
 import { removePaymentProof, uploadPaymentProof } from "@/lib/paymentProofService";
-import { getDefaultSlotPrice, loadDefaultSlotPrice } from "@/lib/pricingService";
+import { getDefaultCurrency, getDefaultSlotPrice, loadDefaultSlotPrice, resolveSlotPrices } from "@/lib/pricingService";
+import { hasSupabaseConfig } from "@/lib/supabase";
 import { formatWhatsapp, validateBooking } from "@/lib/validation";
 import type { PaymentMethod } from "@/types/database";
 
@@ -42,8 +43,11 @@ export default function CreateBookingScreen() {
   const [loading, setLoading] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayISO());
   const [pricePerSlot, setPricePerSlot] = useState(getDefaultSlotPrice());
+  const [pricedSlots, setPricedSlots] = useState<{ startTime: string; endTime: string; price: number }[]>([]);
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
   const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
-  const totalPrice = selectedSlots.length * pricePerSlot;
+  const adminId = admin?.id ?? localAdminId;
 
   useEffect(() => {
     if (!track && tracks[0]) setTrack(tracks[0].id);
@@ -51,10 +55,10 @@ export default function CreateBookingScreen() {
   }, [track, tracks]);
 
   useEffect(() => {
-    loadDefaultSlotPrice().then(setPricePerSlot);
-  }, []);
+    loadDefaultSlotPrice(adminId).then(setPricePerSlot);
+  }, [adminId]);
 
-  const slotRows = useMemo(
+  const baseSlotRows = useMemo(
     () =>
       [...selectedSlots].sort((left, right) => slotTimes.indexOf(left) - slotTimes.indexOf(right)).map((slot) => {
         const index = slotTimes.indexOf(slot);
@@ -66,6 +70,36 @@ export default function CreateBookingScreen() {
       }),
     [pricePerSlot, selectedSlots]
   );
+  const slotRows = pricedSlots.length === baseSlotRows.length ? pricedSlots : baseSlotRows;
+  const totalPrice = slotRows.reduce((sum, slot) => sum + slot.price, 0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!hasSupabaseConfig || !track || !bookingDate || !baseSlotRows.length) {
+      setPricedSlots([]);
+      setPriceError(null);
+      setPriceLoading(false);
+      return;
+    }
+
+    setPriceLoading(true);
+    resolveSlotPrices({ trackId: track, bookingDate, slots: baseSlotRows }).then((result) => {
+      if (cancelled) return;
+      setPriceLoading(false);
+      if (result.error || !result.data) {
+        setPricedSlots([]);
+        setPriceError(result.error ?? "No active price rule found for the selected slot.");
+        return;
+      }
+      setPricedSlots(result.data);
+      setPriceError(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [baseSlotRows, bookingDate, track]);
 
   function toggleSlot(slot: string) {
     setSelectedSlots((current) => (current.includes(slot) ? current.filter((item) => item !== slot) : [...current, slot]));
@@ -109,6 +143,10 @@ export default function CreateBookingScreen() {
       Alert.alert(t("create.proofRequired"), t("create.proofRequiredMessage"));
       return;
     }
+    if (hasSupabaseConfig && (priceLoading || priceError || pricedSlots.length !== slotRows.length)) {
+      Alert.alert(t("pricing.invalidPrice"), priceError ?? t("pricing.loading"));
+      return;
+    }
 
     setLoading(true);
 
@@ -135,7 +173,7 @@ export default function CreateBookingScreen() {
       paymentProofPath: storagePath,
       remarks,
       createAsAccepted,
-      adminId: admin?.id ?? localAdminId
+      adminId
     });
     setLoading(false);
 
@@ -213,8 +251,9 @@ export default function CreateBookingScreen() {
         <View className="mt-4 flex-row justify-between">
           <Summary label={t("create.totalDuration")} value={`${selectedSlots.length * 30} min`} />
           <Summary label={t("common.slots")} value={String(selectedSlots.length)} />
-          <Summary label={t("create.totalPrice")} value={formatCurrency(totalPrice)} />
+          <Summary label={t("create.totalPrice")} value={priceLoading ? t("pricing.loading") : formatCurrency(totalPrice, getDefaultCurrency())} />
         </View>
+        {priceError ? <Text className="mt-3 text-sm text-red-500">{priceError}</Text> : null}
       </Card>
 
       <View className="mt-5 gap-3">

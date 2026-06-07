@@ -1,6 +1,8 @@
 import type { AdminUser } from "@/types/database";
-import { createContext, useContext, useMemo, useState, useEffect, type PropsWithChildren } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, useCallback, type PropsWithChildren } from "react";
 import { supabase, hasSupabaseConfig } from "@/lib/supabase";
+import { loadAdminSettings } from "@/lib/settingsService";
+import { useLanguage } from "./useLanguage";
 
 type AuthContextValue = {
   admin: AdminUser | null;
@@ -10,16 +12,34 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+type AuthClientWithSession = {
+  getSession: () => Promise<{ data: { session: { user: { id: string } } | null } }>;
+  onAuthStateChange: (
+    callback: (event: string, session: { user: { id: string } } | null) => void | Promise<void>
+  ) => { data: { subscription: { unsubscribe: () => void } } };
+};
+
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { setLang } = useLanguage();
+  const [admin, setAdminState] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(hasSupabaseConfig);
+
+  const setAdmin = useCallback((nextAdmin: AdminUser | null) => {
+    setAdminState(nextAdmin);
+    if (nextAdmin) {
+      loadAdminSettings(nextAdmin.id).then((result) => {
+        if (result.data) setLang(result.data.language);
+      });
+    }
+  }, [setLang]);
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
 
     async function recoverSession() {
       try {
-        const { data: { session } } = await supabase!.auth.getSession();
+        const auth = supabase!.auth as unknown as AuthClientWithSession;
+        const { data: { session } } = await auth.getSession();
         if (session?.user) {
           const { data, error } = await supabase!
             .from("admin_users")
@@ -41,7 +61,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     recoverSession();
 
-    const { data: { subscription } } = supabase!.auth.onAuthStateChange(async (event, session) => {
+    const auth = supabase!.auth as unknown as AuthClientWithSession;
+    const { data: { subscription } } = auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         try {
           const { data, error } = await supabase!
@@ -65,9 +86,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [setAdmin]);
 
-  const value = useMemo(() => ({ admin, setAdmin, loading }), [admin, loading]);
+  const value = useMemo(() => ({ admin, setAdmin, loading }), [admin, loading, setAdmin]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

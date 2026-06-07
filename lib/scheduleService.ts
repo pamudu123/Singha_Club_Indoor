@@ -84,12 +84,14 @@ export async function getDaySchedule(input: {
   }
 }
 
-export async function listBlockedSlots(input?: { trackId?: string; slotDate?: string }): Promise<ServiceResult<BlockedSlot[]>> {
+export async function listBlockedSlots(input?: { trackId?: string; slotDate?: string; fromDate?: string; toDate?: string }): Promise<ServiceResult<BlockedSlot[]>> {
   try {
     const client = requireSupabase();
     let query = client.from("blocked_slots").select("*, tracks ( id, track_name )").order("slot_date").order("start_time");
     if (input?.trackId) query = query.eq("track_id", input.trackId);
     if (input?.slotDate) query = query.eq("slot_date", input.slotDate);
+    if (input?.fromDate) query = query.gte("slot_date", input.fromDate);
+    if (input?.toDate) query = query.lte("slot_date", input.toDate);
     const { data, error } = await query;
     if (error) throw error;
     const remoteSlots = ((data as BlockedSlot[]) ?? []).map(decorateBlockedSlot);
@@ -101,33 +103,71 @@ export async function listBlockedSlots(input?: { trackId?: string; slotDate?: st
 
 export async function createBlockedSlots(input: {
   trackId: string;
-  slotDate: string;
+  slotDate?: string;
+  slotDates?: string[];
   slots: Array<{ startTime: string; endTime: string }>;
   reason: string;
   adminId: string;
-}) {
+}): Promise<{ error: string | null; insertedCount?: number }> {
   try {
     const client = getWritableSupabase();
-    const { error } = await client.from("blocked_slots").insert(
-      input.slots.map((slot) => ({
-        track_id: input.trackId,
-        slot_date: input.slotDate,
-        start_time: slot.startTime,
-        end_time: slot.endTime,
-        reason: input.reason,
-        created_by_admin_id: input.adminId
-      }))
+    const slotDates = [...new Set(input.slotDates ?? (input.slotDate ? [input.slotDate] : []))].sort();
+    if (!slotDates.length || !input.slots.length) {
+      return { error: "Select at least one date and time slot." };
+    }
+
+    const { data: existingSlots, error: existingError } = await client
+      .from("blocked_slots")
+      .select("slot_date, start_time, end_time")
+      .eq("track_id", input.trackId)
+      .in("slot_date", slotDates)
+      .in("start_time", input.slots.map((slot) => slot.startTime));
+    if (existingError) throw existingError;
+
+    const existingSlotKeys = new Set(
+      ((existingSlots as Array<{ slot_date: string; start_time: string; end_time: string }> | null) ?? []).map((slot) => `${slot.slot_date}-${slot.start_time}-${slot.end_time}`)
     );
+
+    const { data: bookedSlots, error: bookedError } = await client
+      .from("booking_slots")
+      .select("slot_date, start_time, end_time")
+      .eq("track_id", input.trackId)
+      .eq("slot_status", "active")
+      .in("slot_date", slotDates)
+      .in("start_time", input.slots.map((slot) => slot.startTime));
+    if (bookedError) throw bookedError;
+
+    if ((bookedSlots ?? []).length > 0) {
+      return { error: "One or more selected slots already have active bookings." };
+    }
+
+    const slotsToInsert = slotDates.flatMap((slotDate) =>
+      input.slots
+        .filter((slot) => !existingSlotKeys.has(`${slotDate}-${slot.startTime}-${slot.endTime}`))
+        .map((slot) => ({
+          track_id: input.trackId,
+          slot_date: slotDate,
+          start_time: slot.startTime,
+          end_time: slot.endTime,
+          reason: input.reason,
+          created_by_admin_id: input.adminId
+        }))
+    );
+    if (!slotsToInsert.length) {
+      return { error: "All selected slots are already blocked." };
+    }
+
+    const { error } = await client.from("blocked_slots").insert(slotsToInsert);
     if (error) throw error;
 
     const { error: activityError } = await client.from("admin_activity_logs").insert({
       admin_user_id: input.adminId,
       action_type: "slot_blocked",
-      description: `Blocked slots on ${input.slotDate}`
+      description: `Blocked ${slotsToInsert.length} slot(s) from ${slotDates[0]} to ${slotDates[slotDates.length - 1]}`
     });
     if (activityError) console.warn("Could not save slot block activity", activityError.message);
 
-    return { error: null };
+    return { error: null, insertedCount: slotsToInsert.length };
   } catch (error) {
     return { error: toServiceError(error) };
   }
