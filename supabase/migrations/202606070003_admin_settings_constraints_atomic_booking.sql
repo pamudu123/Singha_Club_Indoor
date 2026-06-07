@@ -98,8 +98,24 @@ create unique index if not exists booking_slots_one_active_slot_idx
 on public.booking_slots (track_id, slot_date, start_time)
 where slot_status = 'active';
 
+-- Deduplicate public.blocked_slots to ensure we can create the unique index
+delete from public.blocked_slots
+where id in (
+  select id
+  from (
+    select id,
+           row_number() over (
+             partition by track_id, slot_date, start_time 
+             order by created_at desc, id
+           ) as rn
+    from public.blocked_slots
+  ) t
+  where t.rn > 1
+);
+
 create unique index if not exists blocked_slots_one_slot_idx
 on public.blocked_slots (track_id, slot_date, start_time);
+
 
 create index if not exists slot_prices_active_lookup_idx
 on public.slot_prices (track_id, start_time, end_time, effective_from, effective_to)
@@ -228,6 +244,9 @@ begin
   return v_price;
 end;
 $$;
+
+drop function if exists public.create_booking_atomic(text,text,text,text,text,date,uuid,jsonb,integer,text,text,text,boolean,uuid,text);
+drop function if exists public.create_booking_atomic(text,text,text,text,text,date,uuid,jsonb,integer,text,text,text,boolean,uuid);
 
 create or replace function public.create_booking_atomic(
   p_booking_reference text,

@@ -36,6 +36,15 @@ function shortTime(time: string) {
   return `${hour} ${period}`;
 }
 
+/** Format "HH:MM" keeping minutes e.g. "7:30 PM", "8:00 PM" */
+function formatSlotTime(time: string) {
+  const [hourStr, minStr] = time.split(":");
+  const hourValue = parseInt(hourStr, 10);
+  const period = hourValue >= 12 ? "PM" : "AM";
+  const hour = hourValue % 12 || 12;
+  return `${hour}:${minStr} ${period}`;
+}
+
 const MONTH_KEYS = [
   "date.month.january",
   "date.month.february",
@@ -422,7 +431,7 @@ export default function ReportsScreen() {
         for (const slot of booking.booking_slots || []) {
           const st = (slot as any).start_time as string;
           const et = (slot as any).end_time as string;
-          const key = `${shortTime(st)} - ${shortTime(et)}`;
+          const key = `${formatSlotTime(st)} - ${formatSlotTime(et)}`;
           slotCounts[key] = (slotCounts[key] || 0) + 1;
         }
       }
