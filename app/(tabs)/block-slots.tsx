@@ -70,6 +70,10 @@ export default function BlockSlotsScreen() {
     if (result.error) Alert.alert(t("block.failed"), result.error);
     else {
       Alert.alert(t("block.saved"), t("block.savedMessage", { count: slots.length }));
+      setSlotDate(todayISO());
+      setStartTime("18:00");
+      setEndTime("20:00");
+      setReason("Maintenance");
       refresh();
     }
   }

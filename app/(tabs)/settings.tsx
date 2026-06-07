@@ -1,6 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { Bell, CheckCircle2, Globe, Lock, LogOut, Mail, MessageCircle, Settings2, Unlock, User, XCircle } from "lucide-react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, Switch, Text, TextInput, View, Alert } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/Card";
@@ -11,6 +12,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { logout, updateAdminProfile } from "@/lib/authService";
 import { formatWhatsapp } from "@/lib/validation";
+
+const settingsStorageKey = "singha.adminSettings";
 
 export default function SettingsScreen() {
   const { admin, setAdmin } = useAuth();
@@ -29,6 +32,35 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState(admin?.email ?? "admin@singha.club");
   const [nic, setNic] = useState(admin?.nic ?? "");
   const [maxSlots, setMaxSlots] = useState(10);
+
+  useEffect(() => {
+    AsyncStorage.getItem(settingsStorageKey).then((storedSettings) => {
+      if (!storedSettings) return;
+      try {
+        const parsed = JSON.parse(storedSettings) as { notifications?: typeof notifications; maxSlots?: number };
+        if (parsed.notifications) setNotifications(parsed.notifications);
+        if (typeof parsed.maxSlots === "number") setMaxSlots(parsed.maxSlots);
+      } catch (error) {
+        console.warn("Could not load admin settings", error);
+      }
+    });
+  }, []);
+
+  function persistSettings(nextNotifications = notifications, nextMaxSlots = maxSlots) {
+    AsyncStorage.setItem(settingsStorageKey, JSON.stringify({ notifications: nextNotifications, maxSlots: nextMaxSlots })).catch((error) => {
+      console.warn("Could not save admin settings", error);
+    });
+  }
+
+  function updateNotifications(nextNotifications: typeof notifications) {
+    setNotifications(nextNotifications);
+    persistSettings(nextNotifications, maxSlots);
+  }
+
+  function updateMaxSlots(nextMaxSlots: number) {
+    setMaxSlots(nextMaxSlots);
+    persistSettings(notifications, nextMaxSlots);
+  }
 
   async function onLogout() {
     await logout();
@@ -78,11 +110,11 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t("settings.notifications")} subtitle={t("settings.notifications.subtitle")} icon={Bell}>
-        <ToggleRow title={t("settings.notifications.newBooking")} value={notifications.booking} onValueChange={(booking) => setNotifications((value) => ({ ...value, booking }))} />
-        <ToggleRow title={t("settings.notifications.accepted")} value={notifications.accepted} onValueChange={(accepted) => setNotifications((value) => ({ ...value, accepted }))} />
-        <ToggleRow title={t("settings.notifications.rejected")} value={notifications.rejected} onValueChange={(rejected) => setNotifications((value) => ({ ...value, rejected }))} />
-        <ToggleRow title={t("settings.notifications.onHold")} value={notifications.onHold} onValueChange={(onHold) => setNotifications((value) => ({ ...value, onHold }))} />
-        <ToggleRow title={t("settings.notifications.dailySummary")} value={notifications.summary} onValueChange={(summary) => setNotifications((value) => ({ ...value, summary }))} />
+        <ToggleRow title={t("settings.notifications.newBooking")} value={notifications.booking} onValueChange={(booking) => updateNotifications({ ...notifications, booking })} />
+        <ToggleRow title={t("settings.notifications.accepted")} value={notifications.accepted} onValueChange={(accepted) => updateNotifications({ ...notifications, accepted })} />
+        <ToggleRow title={t("settings.notifications.rejected")} value={notifications.rejected} onValueChange={(rejected) => updateNotifications({ ...notifications, rejected })} />
+        <ToggleRow title={t("settings.notifications.onHold")} value={notifications.onHold} onValueChange={(onHold) => updateNotifications({ ...notifications, onHold })} />
+        <ToggleRow title={t("settings.notifications.dailySummary")} value={notifications.summary} onValueChange={(summary) => updateNotifications({ ...notifications, summary })} />
       </SettingsSection>
 
       <SettingsSection 
@@ -102,7 +134,7 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t("settings.bookingSettings")} subtitle={t("settings.bookingSettings.subtitle")} icon={Settings2}>
-        <StepperRow icon={CheckCircle2} label={t("settings.bookingSettings.maxSlots")} value={maxSlots} onDecrement={() => setMaxSlots(Math.max(1, maxSlots - 1))} onIncrement={() => setMaxSlots(Math.min(50, maxSlots + 1))} />
+        <StepperRow icon={CheckCircle2} label={t("settings.bookingSettings.maxSlots")} value={maxSlots} onDecrement={() => updateMaxSlots(Math.max(1, maxSlots - 1))} onIncrement={() => updateMaxSlots(Math.min(50, maxSlots + 1))} />
       </SettingsSection>
 
       <SettingsSection title={t("settings.adminProfile")} subtitle={t("settings.adminProfile.subtitle")} icon={User}>
@@ -145,20 +177,20 @@ function ToggleRow({ title, value, onValueChange }: { title: string; value: bool
 
 function InfoRow({ icon: Icon, label, value, isEditable, onChangeText, keyboardType, placeholder }: { icon: typeof XCircle; label: string; value: string; isEditable?: boolean; onChangeText?: (t: string) => void; keyboardType?: any; placeholder?: string }) {
   return (
-    <View className="flex-row flex-wrap items-center gap-y-3 border-t border-line py-4">
-      <Icon size={22} color="#087d24" />
-      <Text className="ml-4 min-w-28 flex-1 text-lg text-ink">{label}</Text>
+    <View className="flex-row items-center border-t border-line py-3">
+      <Icon size={20} color="#087d24" />
+      <Text className="ml-3 w-28 text-sm font-medium text-muted">{label}</Text>
       {isEditable ? (
         <TextInput
-          className="flex-1 rounded-lg border border-line bg-surface px-3 text-right text-lg text-ink"
-          style={{ height: 44, paddingTop: 0, paddingBottom: 0, lineHeight: 24, includeFontPadding: false }}
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-right text-base text-ink"
+          style={{ height: 40, paddingTop: 0, paddingBottom: 0, lineHeight: 20, includeFontPadding: false }}
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
           placeholder={placeholder}
         />
       ) : (
-        <Text className="flex-1 text-right text-muted" numberOfLines={1}>
+        <Text className="min-w-0 flex-1 text-right text-base text-ink" numberOfLines={1} ellipsizeMode="tail">
           {value || placeholder || "-"}
         </Text>
       )}

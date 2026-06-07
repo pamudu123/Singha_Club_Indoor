@@ -20,7 +20,7 @@ import { useTracks } from "@/hooks/useTracks";
 import { createBooking, makeBookingReference } from "@/lib/bookingService";
 import { displayTimeToDb, formatCurrency, todayISO } from "@/lib/date";
 import { removePaymentProof, uploadPaymentProof } from "@/lib/paymentProofService";
-import { getDefaultSlotPrice } from "@/lib/pricingService";
+import { getDefaultSlotPrice, loadDefaultSlotPrice } from "@/lib/pricingService";
 import { formatWhatsapp, validateBooking } from "@/lib/validation";
 import type { PaymentMethod } from "@/types/database";
 
@@ -41,14 +41,18 @@ export default function CreateBookingScreen() {
   const [proofAsset, setProofAsset] = useState<DocumentPickerAsset | null>(null);
   const [loading, setLoading] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayISO());
+  const [pricePerSlot, setPricePerSlot] = useState(getDefaultSlotPrice());
   const { tracks, trackOptions, error: tracksError, loading: tracksLoading } = useTracks();
-  const pricePerSlot = getDefaultSlotPrice();
   const totalPrice = selectedSlots.length * pricePerSlot;
 
   useEffect(() => {
     if (!track && tracks[0]) setTrack(tracks[0].id);
     if (track && tracks.length && !tracks.some((item) => item.id === track)) setTrack(tracks[0].id);
   }, [track, tracks]);
+
+  useEffect(() => {
+    loadDefaultSlotPrice().then(setPricePerSlot);
+  }, []);
 
   const slotRows = useMemo(
     () =>
@@ -141,6 +145,7 @@ export default function CreateBookingScreen() {
       return;
     }
 
+    cancelBooking();
     Alert.alert(t("create.bookingSaved"), t("create.bookingSavedMessage"), [{ text: t("common.ok"), onPress: () => router.replace("/(tabs)") }]);
   }
 

@@ -1,16 +1,28 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { defaultCurrency, initialDefaultSlotPrice, type CurrencyCode } from "@/constants/pricing";
 import { configuredTracks } from "@/constants/tracks";
-import type { DayType, ServiceResult, SlotPrice } from "@/types/database";
+import type { DayType, PriceRuleStatus, ServiceResult, SlotPrice } from "@/types/database";
 import { getWritableSupabase, requireSupabase, toServiceError } from "./supabase";
 
 let defaultSlotPrice = initialDefaultSlotPrice;
+const defaultSlotPriceKey = "singha.defaultSlotPrice";
 
 export function getDefaultSlotPrice() {
   return defaultSlotPrice;
 }
 
-export function updateDefaultSlotPrice(price: number) {
+export async function loadDefaultSlotPrice() {
+  const storedPrice = await AsyncStorage.getItem(defaultSlotPriceKey);
+  const numericPrice = storedPrice ? Number(storedPrice) : NaN;
+  if (Number.isFinite(numericPrice) && numericPrice > 0) {
+    defaultSlotPrice = numericPrice;
+  }
+  return defaultSlotPrice;
+}
+
+export async function updateDefaultSlotPrice(price: number) {
   defaultSlotPrice = price;
+  await AsyncStorage.setItem(defaultSlotPriceKey, String(price));
 }
 
 export function getDefaultCurrency() {
@@ -18,8 +30,11 @@ export function getDefaultCurrency() {
 }
 
 function decorateSlotPrice(slotPrice: SlotPrice): SlotPrice {
+  const status = slotPrice.status ?? (slotPrice.is_active ? "active" : "inactive");
   return {
     ...slotPrice,
+    status,
+    is_active: status === "active",
     tracks: slotPrice.tracks ?? configuredTracks.find((track) => track.id === slotPrice.track_id) ?? null
   };
 }
@@ -40,6 +55,7 @@ export async function listSlotPrices(trackId: string): Promise<ServiceResult<Slo
         currency,
         effective_from,
         effective_to,
+        status,
         is_active,
         created_at,
         updated_at,
@@ -50,6 +66,7 @@ export async function listSlotPrices(trackId: string): Promise<ServiceResult<Slo
       `
       )
       .eq("track_id", trackId)
+      .neq("status", "delete")
       .order("start_time");
     if (error) throw error;
     return { data: ((data as unknown as SlotPrice[]) ?? []).map(decorateSlotPrice), error: null };
@@ -81,6 +98,7 @@ export async function createSlotPrice(input: {
         currency: input.currency,
         effective_from: input.effectiveFrom,
         effective_to: input.effectiveTo ?? null,
+        status: input.isActive ? "active" : "inactive",
         is_active: input.isActive
       })
       .select("*")
@@ -103,8 +121,10 @@ export async function updateSlotPrice(input: {
   effectiveFrom?: string;
   effectiveTo?: string | null;
   isActive?: boolean;
+  status?: PriceRuleStatus;
 }) {
   try {
+    const status = input.status ?? (typeof input.isActive === "boolean" ? (input.isActive ? "active" : "inactive") : undefined);
     const updates = {
       ...(input.startTime ? { start_time: input.startTime } : {}),
       ...(input.endTime ? { end_time: input.endTime } : {}),
@@ -113,7 +133,7 @@ export async function updateSlotPrice(input: {
       ...(input.currency ? { currency: input.currency } : {}),
       ...(input.effectiveFrom ? { effective_from: input.effectiveFrom } : {}),
       ...(input.effectiveTo !== undefined ? { effective_to: input.effectiveTo } : {}),
-      ...(typeof input.isActive === "boolean" ? { is_active: input.isActive } : {})
+      ...(status ? { status, is_active: status === "active" } : {})
     };
     const { error } = await getWritableSupabase()
       .from("slot_prices")
@@ -124,4 +144,8 @@ export async function updateSlotPrice(input: {
   } catch (error) {
     return { error: toServiceError(error) };
   }
+}
+
+export async function markSlotPriceDeleted(id: string) {
+  return updateSlotPrice({ id, status: "delete" });
 }

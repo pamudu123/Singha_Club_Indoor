@@ -21,7 +21,11 @@
         "foregroundImage": "./assets/images/singha_logo.jpg",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.pamudur.singhaclubindoor"
     },
     "plugins": [
       "expo-router",
@@ -30,6 +34,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "db3dc9b3-1558-4292-8ee4-dbd2ae5b28ad"
+      }
     }
   }
 }

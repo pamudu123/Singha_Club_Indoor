@@ -2,6 +2,7 @@ export type BookingStatus = "submitted" | "accepted" | "rejected" | "on_hold";
 export type SlotStatus = "active" | "released";
 export type PaymentMethod = "payment_proof" | "pay_on_arrival";
 export type DayType = "all_days" | "weekday" | "weekend" | "specific_day";
+export type PriceRuleStatus = "active" | "inactive" | "delete";
 
 export type AdminUser = {
   id: string;
@@ -93,6 +94,7 @@ export type SlotPrice = {
   currency: string;
   effective_from: string;
   effective_to?: string | null;
+  status?: PriceRuleStatus;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

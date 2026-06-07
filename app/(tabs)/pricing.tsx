@@ -1,6 +1,6 @@
-import { CheckCircle2, Lock, Pencil, PlusCircle } from "lucide-react-native";
+import { CheckCircle2, Lock, Pencil, PlusCircle, Trash2 } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, Text, TextInput, View } from "react-native";
 import { AppHeader } from "@/components/AppHeader";
 import { SegmentedFilter } from "@/components/SegmentedFilter";
 import { AppButton } from "@/components/ui/AppButton";
@@ -14,7 +14,7 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useTracks } from "@/hooks/useTracks";
 import { displayTime, displayTimeToDb, formatCurrency, formatDateLabel, todayISO } from "@/lib/date";
-import { createSlotPrice, getDefaultCurrency, getDefaultSlotPrice, listSlotPrices, updateDefaultSlotPrice, updateSlotPrice } from "@/lib/pricingService";
+import { createSlotPrice, getDefaultCurrency, getDefaultSlotPrice, listSlotPrices, loadDefaultSlotPrice, markSlotPriceDeleted, updateDefaultSlotPrice, updateSlotPrice } from "@/lib/pricingService";
 import { slotTimes } from "@/constants/booking";
 import type { DayType, SlotPrice } from "@/types/database";
 
@@ -33,7 +33,7 @@ export default function PricingScreen() {
   const { locale, t } = useLanguage();
   const [track, setTrack] = useState<string>("");
   const [editing, setEditing] = useState<SlotPrice | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [startTime, setStartTime] = useState("18:00");
   const [endTime, setEndTime] = useState("19:00");
   const [dayType, setDayType] = useState<DayType>("all_days");
@@ -43,6 +43,7 @@ export default function PricingScreen() {
   const [effectiveToMode, setEffectiveToMode] = useState<EffectiveToMode>("none");
   const [active, setActive] = useState<ActiveValue>("active");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [defaultPrice, setDefaultPrice] = useState(getDefaultSlotPrice());
   const [defaultPriceInput, setDefaultPriceInput] = useState(String(getDefaultSlotPrice()));
   const [defaultPriceUnlocked, setDefaultPriceUnlocked] = useState(false);
@@ -58,6 +59,13 @@ export default function PricingScreen() {
     if (track && tracks.length && !tracks.some((item) => item.id === track)) setTrack(tracks[0].id);
   }, [track, tracks]);
 
+  useEffect(() => {
+    loadDefaultSlotPrice().then((loadedPrice) => {
+      setDefaultPrice(loadedPrice);
+      setDefaultPriceInput(String(loadedPrice));
+    });
+  }, []);
+
   function openAdd() {
     setEditing(null);
     setStartTime("18:00");
@@ -68,7 +76,7 @@ export default function PricingScreen() {
     setEffectiveTo("");
     setEffectiveToMode("none");
     setActive("active");
-    setModalOpen(true);
+    setFormOpen(true);
   }
 
   function openEdit(slotPrice: SlotPrice) {
@@ -80,8 +88,8 @@ export default function PricingScreen() {
     setEffectiveFrom(slotPrice.effective_from);
     setEffectiveTo(slotPrice.effective_to ?? "");
     setEffectiveToMode(slotPrice.effective_to ? "date" : "none");
-    setActive(slotPrice.is_active ? "active" : "inactive");
-    setModalOpen(true);
+    setActive((slotPrice.status ?? (slotPrice.is_active ? "active" : "inactive")) === "active" ? "active" : "inactive");
+    setFormOpen(true);
   }
 
   function toggleDefaultPriceLock() {
@@ -94,7 +102,7 @@ export default function PricingScreen() {
     setDefaultPriceUnlocked(true);
   }
 
-  function saveDefaultPrice() {
+  async function saveDefaultPrice() {
     const numericPrice = Number(defaultPriceInput);
     if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
       Alert.alert(t("pricing.invalidDefault"), t("pricing.invalidDefaultMessage"));
@@ -102,7 +110,7 @@ export default function PricingScreen() {
     }
 
     setDefaultPrice(numericPrice);
-    updateDefaultSlotPrice(numericPrice);
+    await updateDefaultSlotPrice(numericPrice);
     setDefaultPriceUnlocked(false);
   }
 
@@ -161,7 +169,33 @@ export default function PricingScreen() {
       Alert.alert(t("pricing.saveFailed"), result.error);
       return;
     }
-    setModalOpen(false);
+    setFormOpen(false);
+    setEditing(null);
+    refresh();
+  }
+
+  function closeForm() {
+    setFormOpen(false);
+    setEditing(null);
+  }
+
+  function confirmDelete(slotPrice: SlotPrice) {
+    Alert.alert(t("pricing.deleteRule"), t("pricing.deleteRuleMessage"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => deletePriceRule(slotPrice.id) }
+    ]);
+  }
+
+  async function deletePriceRule(id: string) {
+    setDeletingId(id);
+    const result = await markSlotPriceDeleted(id);
+    setDeletingId(null);
+
+    if (result.error) {
+      Alert.alert(t("pricing.deleteFailed"), result.error);
+      return;
+    }
+    if (editing?.id === id) closeForm();
     refresh();
   }
 
@@ -206,6 +240,44 @@ export default function PricingScreen() {
         <Text className="flex-1 text-base text-ink">{t("pricing.manage")}</Text>
         <AppButton title={t("common.addPriceRule")} icon={PlusCircle} className="ml-3" onPress={openAdd} />
       </View>
+
+      {formOpen ? (
+        <Card className="mb-5">
+          <Text className="mb-4 text-xl font-bold text-ink">{editing ? t("common.editRule") : t("common.addPriceRule")}</Text>
+          <View className="gap-4">
+            <SelectField label={t("common.startTime")} value={startTime} onChange={setStartTime} options={timeOptions} />
+            <SelectField label={t("common.endTime")} value={endTime} onChange={setEndTime} options={timeOptions} />
+            <SelectField label={t("pricing.dayType")} value={dayType} onChange={setDayType} options={(Object.keys(dayTypeKeys) as DayType[]).map((value) => ({ label: t(dayTypeKeys[value]), value }))} />
+            <FormField label={t("common.price")} value={price} onChangeText={setPrice} keyboardType="numeric" placeholder={String(defaultPrice)} />
+            <DatePickerField label={t("pricing.effectiveFrom")} value={effectiveFrom} onChange={setEffectiveFrom} minDate={todayISO()} />
+            <SegmentedFilter
+              value={effectiveToMode}
+              onChange={(value) => {
+                setEffectiveToMode(value);
+                if (value === "date" && !effectiveTo) setEffectiveTo(effectiveFrom);
+              }}
+              options={[
+                { label: t("pricing.noEndDate"), value: "none" },
+                { label: t("pricing.setEndDate"), value: "date" }
+              ]}
+            />
+            {effectiveToMode === "date" ? <DatePickerField label={t("pricing.effectiveTo")} value={effectiveTo || effectiveFrom} onChange={setEffectiveTo} minDate={effectiveFrom} /> : null}
+            <SegmentedFilter
+              value={active}
+              onChange={setActive}
+              options={[
+                { label: t("common.active"), value: "active" },
+                { label: t("common.inactive"), value: "inactive" }
+              ]}
+            />
+          </View>
+          <View className="mt-5 flex-row gap-3">
+            <AppButton className="flex-1" title={t("common.cancel")} variant="ghost" onPress={closeForm} />
+            <AppButton className="flex-1" title={t("common.save")} loading={saving} onPress={savePriceRule} />
+          </View>
+        </Card>
+      ) : null}
+
       {loading ? <LoadingState label={t("pricing.loading")} /> : null}
       {error ? <ErrorState message={error} /> : null}
       {data?.map((price) => (
@@ -220,57 +292,20 @@ export default function PricingScreen() {
             <View className="items-end">
               <Text className="text-sm text-muted">{t("common.price")}</Text>
               <Text className="text-2xl font-bold text-ink">{formatCurrency(price.price, price.currency)}</Text>
-              <Text className={`mt-1 font-semibold ${price.is_active ? "text-singha-700" : "text-muted"}`}>{price.is_active ? t("common.active") : t("common.inactive")}</Text>
+              <Text className={`mt-1 font-semibold ${price.status === "active" || price.is_active ? "text-singha-700" : "text-muted"}`}>{price.status === "active" || price.is_active ? t("common.active") : t("common.inactive")}</Text>
             </View>
           </View>
           <View className="mt-4 flex-row justify-between border-t border-line pt-4">
             <Text className="text-muted">{t("common.from")} {formatDateLabel(price.effective_from, locale)}</Text>
             <Text className="text-muted">{price.effective_to ? t("pricing.to", { date: formatDateLabel(price.effective_to, locale) }) : t("pricing.noEndDate")}</Text>
           </View>
-          <AppButton className="mt-4" title={t("common.editRule")} icon={Pencil} variant="secondary" onPress={() => openEdit(price)} />
+          <View className="mt-4 flex-row gap-3">
+            <AppButton className="flex-1" title={t("common.editRule")} icon={Pencil} variant="secondary" onPress={() => openEdit(price)} />
+            <AppButton className="flex-1" title={t("common.delete")} icon={Trash2} variant="danger" loading={deletingId === price.id} onPress={() => confirmDelete(price)} />
+          </View>
         </Card>
       ))}
       <Text className="rounded-xl bg-green-50 p-4 text-singha-700">{t("pricing.note")}</Text>
-
-      <Modal transparent visible={modalOpen} animationType="fade" onRequestClose={() => setModalOpen(false)}>
-        <View className="flex-1 justify-end bg-black/30 px-4 pb-6">
-          <Pressable className="absolute inset-0" onPress={() => setModalOpen(false)} />
-          <View className="max-h-[88%] rounded-2xl border border-line bg-white p-4 shadow-lg">
-            <Text className="mb-4 text-xl font-bold text-ink">{editing ? t("common.editRule") : t("common.addPriceRule")}</Text>
-            <View className="gap-4">
-              <SelectField label={t("common.startTime")} value={startTime} onChange={setStartTime} options={timeOptions} />
-              <SelectField label={t("common.endTime")} value={endTime} onChange={setEndTime} options={timeOptions} />
-              <SelectField label={t("pricing.dayType")} value={dayType} onChange={setDayType} options={(Object.keys(dayTypeKeys) as DayType[]).map((value) => ({ label: t(dayTypeKeys[value]), value }))} />
-              <FormField label={t("common.price")} value={price} onChangeText={setPrice} keyboardType="numeric" placeholder={String(defaultPrice)} />
-              <DatePickerField label={t("pricing.effectiveFrom")} value={effectiveFrom} onChange={setEffectiveFrom} minDate={todayISO()} />
-              <SegmentedFilter
-                value={effectiveToMode}
-                onChange={(value) => {
-                  setEffectiveToMode(value);
-                  if (value === "date" && !effectiveTo) setEffectiveTo(effectiveFrom);
-                }}
-                options={[
-                  { label: t("pricing.noEndDate"), value: "none" },
-                  { label: t("pricing.setEndDate"), value: "date" }
-                ]}
-              />
-              {effectiveToMode === "date" ? <DatePickerField label={t("pricing.effectiveTo")} value={effectiveTo || effectiveFrom} onChange={setEffectiveTo} minDate={effectiveFrom} /> : null}
-              <SegmentedFilter
-                value={active}
-                onChange={setActive}
-                options={[
-                  { label: t("common.active"), value: "active" },
-                  { label: t("common.inactive"), value: "inactive" }
-                ]}
-              />
-            </View>
-            <View className="mt-5 flex-row gap-3">
-              <AppButton className="flex-1" title={t("common.cancel")} variant="ghost" onPress={() => setModalOpen(false)} />
-              <AppButton className="flex-1" title={t("common.save")} loading={saving} onPress={savePriceRule} />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </Screen>
   );
 }
